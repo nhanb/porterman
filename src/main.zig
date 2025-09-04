@@ -1,6 +1,39 @@
 const std = @import("std");
 const dvui = @import("dvui");
 
+const HttpMethod = enum {
+    GET,
+    HEAD,
+    POST,
+    PUT,
+    DELETE,
+    OPTIONS,
+    TRACE,
+    PATCH,
+};
+const http_method_names = blk: {
+    const method_enum_fields = @typeInfo(HttpMethod).@"enum".fields;
+    var results: [method_enum_fields.len][]const u8 = undefined;
+    for (method_enum_fields, 0..) |field, i| {
+        results[i] = field.name;
+    }
+    break :blk results;
+};
+
+const State = struct {
+    method: HttpMethod = .GET,
+    url: struct {
+        // max practical URL size is 2000: https://stackoverflow.com/a/417184
+        buf: [2048]u8,
+        len: usize = 0,
+    },
+};
+var state = State{
+    .url = .{
+        .buf = std.mem.zeroes([2048]u8),
+    },
+};
+
 // To be a dvui App:
 // * declare "dvui_app"
 // * expose the backend's main function
@@ -53,26 +86,6 @@ pub fn AppFrame() !dvui.App.Result {
     return frame();
 }
 
-const HttpMethod = enum {
-    GET,
-    HEAD,
-    POST,
-    PUT,
-    DELETE,
-    OPTIONS,
-    TRACE,
-    PATCH,
-};
-
-const State = struct {
-    method: HttpMethod = .GET,
-    url: struct {
-        buf: [2048]u8 = undefined, // https://stackoverflow.com/a/417184
-        len: usize = 0,
-    } = .{},
-};
-var state = State{};
-
 pub fn frame() !dvui.App.Result {
     var vbox = dvui.box(
         @src(),
@@ -90,18 +103,10 @@ pub fn frame() !dvui.App.Result {
         defer hbox.deinit();
 
         // HTTP method dropdown
-        const method_enum_fields = @typeInfo(HttpMethod).@"enum".fields;
-        const method_choices: [method_enum_fields.len][]const u8 = blk: {
-            var results: [method_enum_fields.len][]const u8 = undefined;
-            inline for (method_enum_fields, 0..) |field, i| {
-                results[i] = field.name;
-            }
-            break :blk results;
-        };
         var method_choice: usize = @intFromEnum(state.method);
         if (dvui.dropdown(
             @src(),
-            &method_choices,
+            &http_method_names,
             &method_choice,
             .{ .min_size_content = .{ .w = 100 }, .gravity_y = 0.5 },
         )) {
@@ -111,11 +116,7 @@ pub fn frame() !dvui.App.Result {
         // URL input
         var url_entry = dvui.textEntry(
             @src(),
-            .{
-                .text = .{
-                    .buffer = &state.url.buf,
-                },
-            },
+            .{ .text = .{ .buffer = &state.url.buf } },
             .{ .expand = .horizontal },
         );
         if (dvui.firstFrame(url_entry.data().id)) {
