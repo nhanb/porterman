@@ -1,5 +1,7 @@
 const std = @import("std");
+const builtin = @import("builtin");
 const dvui = @import("dvui");
+const theme = @import("./theme.zig");
 
 const HttpMethod = enum {
     GET,
@@ -26,7 +28,16 @@ const State = struct {
         // max practical URL size is 2000: https://stackoverflow.com/a/417184
         buf: [2048]u8,
         len: usize = 0,
+
+        fn getText(self: @This()) []const u8 {
+            return self.buf[0..self.len];
+        }
     },
+
+    pub fn sendRequest(self: *State) !void {
+        const url = self.url.getText();
+        std.log.err("XXX: implement sendRequest(): url={s}", .{url});
+    }
 };
 var state = State{
     .url = .{
@@ -76,6 +87,12 @@ pub fn AppInit(win: *dvui.Window) !void {
         .light => dvui.Theme.builtin.adwaita_light,
         .dark => dvui.Theme.builtin.adwaita_dark,
     };
+
+    // Extra keybinds
+    try win.keybinds.putNoClobber(win.gpa, "ptm_send_request", switch (builtin.target.os.tag) {
+        .macos => dvui.enums.Keybind{ .command = true, .key = .enter },
+        else => dvui.enums.Keybind{ .control = true, .key = .enter },
+    });
 }
 
 // Run as app is shutting down before dvui.Window.deinit()
@@ -87,6 +104,23 @@ pub fn AppFrame() !dvui.App.Result {
 }
 
 pub fn frame() !dvui.App.Result {
+    // Handle global events
+    const evts = dvui.events();
+    for (evts) |*e| {
+        switch (e.evt) {
+            .key => |key| {
+                if (key.action == .down) {
+                    if (key.matchBind("ptm_send_request")) {
+                        try state.sendRequest();
+                    }
+                }
+            },
+            else => {},
+        }
+    }
+
+    // GUI starts here
+
     var vbox = dvui.box(
         @src(),
         .{ .dir = .vertical },
@@ -116,14 +150,19 @@ pub fn frame() !dvui.App.Result {
         // URL input
         var url_entry = dvui.textEntry(
             @src(),
-            .{ .text = .{ .buffer = &state.url.buf } },
+            .{ .text = .{ .buffer = &state.url.buf }, .placeholder = "enter url here" },
             .{ .expand = .horizontal },
         );
         if (dvui.firstFrame(url_entry.data().id)) {
             url_entry.textSet(state.url.buf[0..state.url.len], false);
         }
         state.url.len = url_entry.len;
-        defer url_entry.deinit();
+        url_entry.deinit();
+
+        // Go!
+        if (theme.button(@src(), "send", state.url.len == 0, .{ .gravity_y = 0.5 })) {
+            try state.sendRequest();
+        }
     }
 
     return .ok;
