@@ -35,8 +35,29 @@ const State = struct {
     },
 
     pub fn sendRequest(self: *State) !void {
+        // Create the client
+        var client = std.http.Client{ .allocator = gpa };
+        defer client.deinit();
+
+        var resp_writer = std.Io.Writer.Allocating.init(gpa);
         const url = self.url.getText();
-        std.log.err("XXX: implement sendRequest(): url={s}", .{url});
+
+        // Make the request
+        const response = try client.fetch(.{
+            .method = .GET,
+            .location = .{ .url = url },
+            .response_writer = &resp_writer.writer,
+            .headers = .{
+                //.accept_encoding = .{ .override = "application/json" },
+            },
+        });
+
+        // Do whatever you need to in case of HTTP error.
+        if (response.status != .ok) {
+            @panic("Handle errors");
+        }
+
+        std.log.info(">> {s}", .{resp_writer.written()});
     }
 };
 var state = State{
@@ -71,7 +92,7 @@ pub const std_options: std.Options = .{
     .logFn = dvui.App.logFn,
 };
 
-var gpa_instance = std.heap.DebugAllocator(.{}).init();
+var gpa_instance = std.heap.DebugAllocator(.{}).init;
 const gpa = gpa_instance.allocator();
 
 var orig_content_scale: f32 = 1.0;
