@@ -1,5 +1,4 @@
 const std = @import("std");
-const builtin = @import("builtin");
 const dvui = @import("dvui");
 
 // To be a dvui App:
@@ -11,7 +10,7 @@ pub const dvui_app: dvui.App = .{
         .options = .{
             .size = .{ .w = 800.0, .h = 600.0 },
             .min_size = .{ .w = 250.0, .h = 350.0 },
-            .title = "DVUI Example",
+            .title = "Porterman",
             .window_init_options = .{
                 // Could set a default theme here
                 // .theme = dvui.Theme.builtin.dracula,
@@ -28,7 +27,7 @@ pub const std_options: std.Options = .{
     .logFn = dvui.App.logFn,
 };
 
-var gpa_instance = std.heap.GeneralPurposeAllocator(.{}){};
+var gpa_instance = std.heap.DebugAllocator(.{}).init();
 const gpa = gpa_instance.allocator();
 
 var orig_content_scale: f32 = 1.0;
@@ -39,13 +38,11 @@ pub fn AppInit(win: *dvui.Window) !void {
     orig_content_scale = win.content_scale;
     //try dvui.addFont("NOTO", @embedFile("../src/fonts/NotoSansKR-Regular.ttf"), null);
 
-    if (false) {
-        // If you need to set a theme based on the users preferred color scheme, do it here
-        win.theme = switch (win.backend.preferredColorScheme() orelse .light) {
-            .light => dvui.Theme.builtin.adwaita_light,
-            .dark => dvui.Theme.builtin.adwaita_dark,
-        };
-    }
+    // If you need to set a theme based on the users preferred color scheme, do it here
+    win.theme = switch (win.backend.preferredColorScheme() orelse .light) {
+        .light => dvui.Theme.builtin.adwaita_light,
+        .dark => dvui.Theme.builtin.adwaita_dark,
+    };
 }
 
 // Run as app is shutting down before dvui.Window.deinit()
@@ -56,97 +53,77 @@ pub fn AppFrame() !dvui.App.Result {
     return frame();
 }
 
+const HttpMethod = enum {
+    GET,
+    HEAD,
+    POST,
+    PUT,
+    DELETE,
+    OPTIONS,
+    TRACE,
+    PATCH,
+};
+
+const State = struct {
+    method: HttpMethod = .GET,
+    url: struct {
+        buf: [2048]u8 = undefined, // https://stackoverflow.com/a/417184
+        len: usize = 0,
+    } = .{},
+};
+var state = State{};
+
 pub fn frame() !dvui.App.Result {
-    var scaler = dvui.scale(@src(), .{ .scale = &dvui.currentWindow().content_scale, .pinch_zoom = .global }, .{ .rect = .cast(dvui.windowRect()) });
-    scaler.deinit();
+    var vbox = dvui.box(
+        @src(),
+        .{ .dir = .vertical },
+        .{ .style = .window, .background = true, .expand = .both },
+    );
+    defer vbox.deinit();
 
     {
-        var hbox = dvui.box(@src(), .{ .dir = .horizontal }, .{ .style = .window, .background = true, .expand = .horizontal });
+        var hbox = dvui.box(
+            @src(),
+            .{ .dir = .horizontal },
+            .{ .style = .window, .expand = .horizontal },
+        );
         defer hbox.deinit();
 
-        var m = dvui.menu(@src(), .horizontal, .{});
-        defer m.deinit();
-
-        if (dvui.menuItemLabel(@src(), "File", .{ .submenu = true }, .{ .tag = "first-focusable" })) |r| {
-            var fw = dvui.floatingMenu(@src(), .{ .from = r }, .{});
-            defer fw.deinit();
-
-            if (dvui.menuItemLabel(@src(), "Close Menu", .{}, .{ .expand = .horizontal }) != null) {
-                m.close();
+        // HTTP method dropdown
+        const method_enum_fields = @typeInfo(HttpMethod).@"enum".fields;
+        const method_choices: [method_enum_fields.len][]const u8 = blk: {
+            var results: [method_enum_fields.len][]const u8 = undefined;
+            inline for (method_enum_fields, 0..) |field, i| {
+                results[i] = field.name;
             }
-
-            if (dvui.backend.kind != .web) {
-                if (dvui.menuItemLabel(@src(), "Exit", .{}, .{ .expand = .horizontal }) != null) {
-                    return .close;
-                }
-            }
-        }
-    }
-
-    var scroll = dvui.scrollArea(@src(), .{}, .{ .expand = .both, .style = .window });
-    defer scroll.deinit();
-
-    var tl = dvui.textLayout(@src(), .{}, .{ .expand = .horizontal, .font_style = .title_4 });
-    const lorem = "This is a dvui.App example that can compile on multiple backends.";
-    tl.addText(lorem, .{});
-    tl.addText("\n\n", .{});
-    tl.format("Current backend: {s}", .{@tagName(dvui.backend.kind)}, .{});
-    if (dvui.backend.kind == .web) {
-        tl.format(" : {s}", .{if (dvui.backend.wasm.wasm_about_webgl2() == 1) "webgl2" else "webgl (no mipmaps)"}, .{});
-    }
-    tl.deinit();
-
-    var tl2 = dvui.textLayout(@src(), .{}, .{ .expand = .horizontal });
-    tl2.addText(
-        \\DVUI
-        \\- paints the entire window
-        \\- can show floating windows and dialogs
-        \\- rest of the window is a scroll area
-    , .{});
-    tl2.addText("\n\n", .{});
-    tl2.addText("Framerate is variable and adjusts as needed for input events and animations.", .{});
-    tl2.addText("\n\n", .{});
-    tl2.addText("Framerate is capped by vsync.", .{});
-    tl2.addText("\n\n", .{});
-    tl2.addText("Cursor is always being set by dvui.", .{});
-    tl2.addText("\n\n", .{});
-    if (dvui.useFreeType) {
-        tl2.addText("Fonts are being rendered by FreeType 2.", .{});
-    } else {
-        tl2.addText("Fonts are being rendered by stb_truetype.", .{});
-    }
-    tl2.deinit();
-
-    const label = if (dvui.Examples.show_demo_window) "Hide Demo Window" else "Show Demo Window";
-    if (dvui.button(@src(), label, .{}, .{ .tag = "show-demo-btn" })) {
-        dvui.Examples.show_demo_window = !dvui.Examples.show_demo_window;
-    }
-
-    if (dvui.button(@src(), "Debug Window", .{}, .{})) {
-        dvui.toggleDebugWindow();
-    }
-
-    {
-        var hbox = dvui.box(@src(), .{ .dir = .horizontal }, .{});
-        defer hbox.deinit();
-        dvui.label(@src(), "Pinch Zoom or Scale", .{}, .{});
-        if (dvui.buttonIcon(@src(), "plus", dvui.entypo.plus, .{}, .{}, .{})) {
-            dvui.currentWindow().content_scale *= 1.1;
+            break :blk results;
+        };
+        var method_choice: usize = @intFromEnum(state.method);
+        if (dvui.dropdown(
+            @src(),
+            &method_choices,
+            &method_choice,
+            .{ .min_size_content = .{ .w = 100 }, .gravity_y = 0.5 },
+        )) {
+            state.method = @enumFromInt(method_choice);
         }
 
-        if (dvui.buttonIcon(@src(), "minus", dvui.entypo.minus, .{}, .{}, .{})) {
-            dvui.currentWindow().content_scale /= 1.1;
+        // URL input
+        var url_entry = dvui.textEntry(
+            @src(),
+            .{
+                .text = .{
+                    .buffer = &state.url.buf,
+                },
+            },
+            .{ .expand = .horizontal },
+        );
+        if (dvui.firstFrame(url_entry.data().id)) {
+            url_entry.textSet(state.url.buf[0..state.url.len], false);
         }
-
-        if (dvui.currentWindow().content_scale != orig_content_scale) {
-            if (dvui.button(@src(), "Reset Scale", .{}, .{})) {
-                dvui.currentWindow().content_scale = orig_content_scale;
-            }
-        }
+        state.url.len = url_entry.len;
+        defer url_entry.deinit();
     }
-
-    // look at demo() for examples of dvui widgets, shows in a floating window
-    dvui.Examples.demo();
 
     return .ok;
 }
