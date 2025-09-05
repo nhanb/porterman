@@ -30,8 +30,12 @@ const State = struct {
         buf: [2048]u8 = std.mem.zeroes([2048]u8),
         len: usize = 0,
 
-        fn getText(self: @This()) []const u8 {
+        fn getText(self: *@This()) []const u8 {
             return self.buf[0..self.len];
+        }
+        fn setText(self: *@This(), text: []const u8) void {
+            @memcpy(self.buf[0..text.len], text);
+            self.len = text.len;
         }
     } = .{},
 
@@ -70,8 +74,8 @@ var state = State{};
 pub const dvui_app: dvui.App = .{
     .config = .{
         .options = .{
-            .size = .{ .w = 800.0, .h = 600.0 },
-            .min_size = .{ .w = 250.0, .h = 350.0 },
+            .size = .{ .w = 600.0, .h = 250.0 },
+            .min_size = .{ .w = 400.0, .h = 250.0 },
             .title = "Porterman",
             .window_init_options = .{
                 // Could set a default theme here
@@ -111,6 +115,8 @@ pub fn AppInit(win: *dvui.Window) !void {
         .macos => dvui.enums.Keybind{ .command = true, .key = .enter },
         else => dvui.enums.Keybind{ .control = true, .key = .enter },
     });
+
+    state.url.setText("https://httpbin.org/headers");
 }
 
 // Run as app is shutting down before dvui.Window.deinit()
@@ -128,6 +134,7 @@ pub fn frame() !dvui.App.Result {
         switch (e.evt) {
             .key => |key| {
                 if (key.action == .down) {
+                    //std.log.info(">> key down: {s}", .{@tagName(key.code)});
                     if (key.matchBind("ptm_send_request")) {
                         try state.sendRequest();
                     }
@@ -173,6 +180,7 @@ pub fn frame() !dvui.App.Result {
         );
         if (dvui.firstFrame(url_entry.data().id)) {
             url_entry.textSet(state.url.buf[0..state.url.len], false);
+            dvui.focusWidget(url_entry.data().id, null, null);
         }
         state.url.len = url_entry.len;
         url_entry.deinit();
