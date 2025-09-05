@@ -14,12 +14,12 @@ const HttpMethod = enum {
     PATCH,
 };
 const http_method_names = blk: {
-    const method_enum_fields = @typeInfo(HttpMethod).@"enum".fields;
-    var results: [method_enum_fields.len][]const u8 = undefined;
-    for (method_enum_fields, 0..) |field, i| {
-        results[i] = field.name;
+    const enum_fields = @typeInfo(HttpMethod).@"enum".fields;
+    var names: [enum_fields.len][]const u8 = undefined;
+    for (enum_fields, 0..) |field, i| {
+        names[i] = field.name;
     }
-    break :blk results;
+    break :blk names;
 };
 
 const State = struct {
