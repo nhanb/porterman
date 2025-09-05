@@ -1,6 +1,7 @@
 const std = @import("std");
 const builtin = @import("builtin");
 const dvui = @import("dvui");
+const zqlite = @import("zqlite");
 const theme = @import("./theme.zig");
 
 const HttpMethod = enum {
@@ -23,29 +24,38 @@ const http_method_names = blk: {
 };
 
 const State = struct {
-    method: HttpMethod = .GET,
-    url: struct {
-        // max practical URL size is 2000:
-        // https://stackoverflow.com/a/417184
-        buf: [2048]u8 = std.mem.zeroes([2048]u8),
-        len: usize = 0,
+    method: HttpMethod,
+    url: []const u8,
+    sending: bool,
+    response_status: i64, // TODO: make it std.http.Status
+    response_body: []const u8,
 
-        fn getText(self: *@This()) []const u8 {
-            return self.buf[0..self.len];
+    pub fn fromDb(arena: std.mem.Allocator, conn: zqlite.Conn) !State {
+        if (try conn.row(
+            \\select method, url, sending, response_status, response_body from state limit 1;
+        , .{})) |row| {
+            defer row.deinit();
+            return State{
+                .method = std.meta.stringToEnum(
+                    HttpMethod,
+                    try arena.dupe(u8, row.text(0)),
+                ).?,
+                .url = try arena.dupe(u8, row.text(1)),
+                .sending = row.int(2) == 1,
+                .response_status = row.int(3),
+                .response_body = try arena.dupe(u8, row.text(4)),
+            };
         }
-        fn setText(self: *@This(), text: []const u8) void {
-            @memcpy(self.buf[0..text.len], text);
-            self.len = text.len;
-        }
-    } = .{},
+        @panic("Failed to read state from in-memory db.");
+    }
 
-    pub fn sendRequest(self: *State) !void {
+    pub fn sendRequest(self: State) !void {
         // Create the client
-        var client = std.http.Client{ .allocator = gpa };
+        var client = std.http.Client{ .allocator = dba };
         defer client.deinit();
 
-        var resp_writer = std.Io.Writer.Allocating.init(gpa);
-        const url = self.url.getText();
+        var resp_writer = std.Io.Writer.Allocating.init(dba);
+        const url = self.url;
 
         // Make the request
         const response = try client.fetch(.{
@@ -57,15 +67,11 @@ const State = struct {
             },
         });
 
-        // Do whatever you need to in case of HTTP error.
-        if (response.status != .ok) {
-            @panic("Handle errors");
-        }
-
-        std.log.info(">> {s}", .{resp_writer.written()});
+        std.log.info(">> {any}: {s}", .{ response.status, resp_writer.written() });
+        //self.response_body = resp_writer.written();
+        //self.response_status = response.status;
     }
 };
-var state = State{};
 
 // To be a dvui App:
 // * declare "dvui_app"
@@ -93,15 +99,17 @@ pub const std_options: std.Options = .{
     .logFn = dvui.App.logFn,
 };
 
-var gpa_instance = std.heap.DebugAllocator(.{}).init;
-const gpa = gpa_instance.allocator();
+var dba_impl = std.heap.DebugAllocator(.{}).init;
+const dba = dba_impl.allocator();
 
-var orig_content_scale: f32 = 1.0;
+var frame_arena_impl = std.heap.ArenaAllocator.init(dba);
+const frame_arena = frame_arena_impl.allocator();
+
+var db_conn: zqlite.Conn = undefined;
 
 // Runs before the first frame, after backend and dvui.Window.init()
 // - runs between win.begin()/win.end()
 pub fn AppInit(win: *dvui.Window) !void {
-    orig_content_scale = win.content_scale;
     //try dvui.addFont("NOTO", @embedFile("../src/fonts/NotoSansKR-Regular.ttf"), null);
 
     // If you need to set a theme based on the users preferred color scheme, do it here
@@ -116,11 +124,21 @@ pub fn AppInit(win: *dvui.Window) !void {
         else => dvui.enums.Keybind{ .control = true, .key = .enter },
     });
 
-    state.url.setText("https://httpbin.org/headers");
+    // Init in-memory db that will be the single source of truth for app state
+    const db_flags = zqlite.OpenFlags.Create | zqlite.OpenFlags.EXResCode;
+    db_conn = try zqlite.open(":memory:", db_flags);
+    // Populate init db data:
+    db_conn.execNoArgs(@embedFile("./db-schema.sql")) catch |err| {
+        std.log.err(">> sql error: {s}", .{db_conn.lastError()});
+        return err;
+    };
 }
 
 // Run as app is shutting down before dvui.Window.deinit()
-pub fn AppDeinit() void {}
+pub fn AppDeinit() void {
+    std.log.info("AppDeinit()", .{});
+    db_conn.close();
+}
 
 // Run each frame to do normal UI
 pub fn AppFrame() !dvui.App.Result {
@@ -128,6 +146,9 @@ pub fn AppFrame() !dvui.App.Result {
 }
 
 pub fn frame() !dvui.App.Result {
+    defer _ = frame_arena_impl.reset(.retain_capacity);
+    const state = try State.fromDb(frame_arena, db_conn);
+
     // Handle global events
     const evts = dvui.events();
     for (evts) |*e| {
@@ -169,20 +190,35 @@ pub fn frame() !dvui.App.Result {
             &method_choice,
             .{ .min_size_content = .{ .w = 100 }, .gravity_y = 0.5 },
         )) {
-            state.method = @enumFromInt(method_choice);
+            const new_method: HttpMethod = @enumFromInt(method_choice);
+            db_conn.exec("update state set method=?;", .{@tagName(new_method)}) catch |err| {
+                std.log.err(">> sql error: {s}", .{db_conn.lastError()});
+                return err;
+            };
         }
 
         // URL input
         var url_entry = dvui.textEntry(
             @src(),
-            .{ .text = .{ .buffer = &state.url.buf }, .placeholder = "enter url here" },
+            .{ .text = .{ .internal = .{ .limit = 2048 } }, .placeholder = "enter url here" },
             .{ .expand = .horizontal },
         );
         if (dvui.firstFrame(url_entry.data().id)) {
-            url_entry.textSet(state.url.buf[0..state.url.len], false);
+            if (try db_conn.row("select url from state limit 1", .{})) |row| {
+                defer row.deinit();
+                url_entry.textSet(row.text(0), false);
+            } else {
+                @panic("Failed to read state from in-memory db.");
+            }
+
             dvui.focusWidget(url_entry.data().id, null, null);
         }
-        state.url.len = url_entry.len;
+        if (url_entry.text_changed) {
+            db_conn.exec("update state set url=?;", .{url_entry.getText()}) catch |err| {
+                std.log.err(">> sql error: {s}", .{db_conn.lastError()});
+                return err;
+            };
+        }
         url_entry.deinit();
 
         // Go!

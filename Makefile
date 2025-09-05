@@ -1,4 +1,4 @@
-PARAMS = -fsys=sdl3 -fsys=freetype
+PARAMS = -fsys=sdl3 -fsys=freetype -fsys=sqlite3
 
 watch:
 	zig build run $(PARAMS) --watch
