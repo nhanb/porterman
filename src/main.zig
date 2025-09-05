@@ -25,14 +25,15 @@ const http_method_names = blk: {
 const State = struct {
     method: HttpMethod = .GET,
     url: struct {
-        // max practical URL size is 2000: https://stackoverflow.com/a/417184
-        buf: [2048]u8,
+        // max practical URL size is 2000:
+        // https://stackoverflow.com/a/417184
+        buf: [2048]u8 = std.mem.zeroes([2048]u8),
         len: usize = 0,
 
         fn getText(self: @This()) []const u8 {
             return self.buf[0..self.len];
         }
-    },
+    } = .{},
 
     pub fn sendRequest(self: *State) !void {
         // Create the client
@@ -60,11 +61,7 @@ const State = struct {
         std.log.info(">> {s}", .{resp_writer.written()});
     }
 };
-var state = State{
-    .url = .{
-        .buf = std.mem.zeroes([2048]u8),
-    },
-};
+var state = State{};
 
 // To be a dvui App:
 // * declare "dvui_app"
