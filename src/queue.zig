@@ -1,35 +1,34 @@
-//! Thread-safe FIFO queue
 const std = @import("std");
 const t = std.testing;
 
-//pub fn init(comptime Message: type) type {
-//    return struct {
-//        mutex: std.Thread.Mutex = .{},
-//        condition: std.Thread.Condition = .{},
-//        messages: std.ArrayList(Message) = .{},
-//
-//        pub fn pop(self: *@This()) Message {
-//            self.mutex.lock();
-//            defer self.mutex.unlock();
-//
-//            if (self.messages.items.len == 0) {
-//                self.condition.wait(&self.mutex);
-//            }
-//
-//            // TODO
-//        }
-//
-//        pub fn push(self: *@This(), message: Message) Message {
-//            _ = message;
-//            {
-//                self.mutex.lock();
-//                defer self.mutex.unlock();
-//                self.predicate = true;
-//            }
-//            self.condition.signal();
-//        }
-//    };
-//}
+/// Thread-safe FIFO queue
+pub fn Queue(comptime Message: type) type {
+    return struct {
+        mutex: std.Thread.Mutex = .{},
+        condition: std.Thread.Condition = .{},
+        messages: RingBuffer(Message, 100) = .{},
+
+        pub fn pop(self: *@This()) Message {
+            self.mutex.lock();
+            defer self.mutex.unlock();
+
+            while (self.messages.num_filled() == 0) {
+                self.condition.wait(&self.mutex);
+            }
+
+            return try self.messages.pop();
+        }
+
+        pub fn push(self: *@This(), message: Message) !Message {
+            {
+                self.mutex.lock();
+                defer self.mutex.unlock();
+                try self.messages.push(message);
+            }
+            self.condition.signal();
+        }
+    };
+}
 
 /// Very simple ring buffer that can process up to <usize> items,
 /// which means 2^64 on 64bit machines.
