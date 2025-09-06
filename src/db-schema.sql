@@ -5,7 +5,7 @@ create table state (
         default 'GET',
     url text default 'https://httpbin.org/headers',
     sending integer check (sending in (0, 1)) default 0,
-    response_status integer default -1,
+    response_status integer check (0 <= response_status < 1024) default 0,
     response_body text default ''
 );
 insert into state(id) values(0);

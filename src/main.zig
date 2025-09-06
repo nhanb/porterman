@@ -14,6 +14,7 @@ const HttpMethod = enum {
     TRACE,
     PATCH,
 };
+
 const http_method_names = blk: {
     const enum_fields = @typeInfo(HttpMethod).@"enum".fields;
     var names: [enum_fields.len][]const u8 = undefined;
@@ -27,7 +28,7 @@ const State = struct {
     method: HttpMethod,
     url: []const u8,
     sending: bool,
-    response_status: i64, // TODO: make it std.http.Status
+    response_status: std.http.Status,
     response_body: []const u8,
 
     pub fn fromDb(arena: std.mem.Allocator, db: Database) !State {
@@ -37,6 +38,7 @@ const State = struct {
         , .{})).?;
         defer row.deinit();
 
+        const status: i64 = @intCast(row.int(3));
         return State{
             .method = std.meta.stringToEnum(
                 HttpMethod,
@@ -44,7 +46,7 @@ const State = struct {
             ).?,
             .url = try arena.dupe(u8, row.text(1)),
             .sending = row.int(2) == 1,
-            .response_status = row.int(3),
+            .response_status = @enumFromInt(status),
             .response_body = try arena.dupe(u8, row.text(4)),
         };
     }
