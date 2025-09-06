@@ -1,8 +1,8 @@
 const std = @import("std");
 const builtin = @import("builtin");
 const dvui = @import("dvui");
-const zqlite = @import("zqlite");
 const theme = @import("./theme.zig");
+const Database = @import("./Database.zig");
 
 const HttpMethod = enum {
     GET,
@@ -30,23 +30,23 @@ const State = struct {
     response_status: i64, // TODO: make it std.http.Status
     response_body: []const u8,
 
-    pub fn fromDb(arena: std.mem.Allocator, conn: zqlite.Conn) !State {
-        if (try conn.row(
-            \\select method, url, sending, response_status, response_body from state limit 1;
-        , .{})) |row| {
-            defer row.deinit();
-            return State{
-                .method = std.meta.stringToEnum(
-                    HttpMethod,
-                    try arena.dupe(u8, row.text(0)),
-                ).?,
-                .url = try arena.dupe(u8, row.text(1)),
-                .sending = row.int(2) == 1,
-                .response_status = row.int(3),
-                .response_body = try arena.dupe(u8, row.text(4)),
-            };
-        }
-        @panic("Failed to read state from in-memory db.");
+    pub fn fromDb(arena: std.mem.Allocator, db: Database) !State {
+        const row = (try db.selectRow(
+            \\select method, url, sending, response_status, response_body
+            \\from state limit 1;
+        , .{})).?;
+        defer row.deinit();
+
+        return State{
+            .method = std.meta.stringToEnum(
+                HttpMethod,
+                try arena.dupe(u8, row.text(0)),
+            ).?,
+            .url = try arena.dupe(u8, row.text(1)),
+            .sending = row.int(2) == 1,
+            .response_status = row.int(3),
+            .response_body = try arena.dupe(u8, row.text(4)),
+        };
     }
 
     pub fn sendRequest(self: State) !void {
@@ -105,7 +105,7 @@ const dba = dba_impl.allocator();
 var frame_arena_impl = std.heap.ArenaAllocator.init(dba);
 const frame_arena = frame_arena_impl.allocator();
 
-var db_conn: zqlite.Conn = undefined;
+var database: Database = undefined;
 
 // Runs before the first frame, after backend and dvui.Window.init()
 // - runs between win.begin()/win.end()
@@ -125,19 +125,14 @@ pub fn AppInit(win: *dvui.Window) !void {
     });
 
     // Init in-memory db that will be the single source of truth for app state
-    const db_flags = zqlite.OpenFlags.Create | zqlite.OpenFlags.EXResCode;
-    db_conn = try zqlite.open(":memory:", db_flags);
-    // Populate init db data:
-    db_conn.execNoArgs(@embedFile("./db-schema.sql")) catch |err| {
-        std.log.err(">> sql error: {s}", .{db_conn.lastError()});
-        return err;
-    };
+    database = try Database.init();
+    try database.execNoArgs(@embedFile("./db-schema.sql"));
 }
 
 // Run as app is shutting down before dvui.Window.deinit()
 pub fn AppDeinit() void {
     std.log.info("AppDeinit()", .{});
-    db_conn.close();
+    database.deinit();
 }
 
 // Run each frame to do normal UI
@@ -147,7 +142,7 @@ pub fn AppFrame() !dvui.App.Result {
 
 pub fn frame() !dvui.App.Result {
     defer _ = frame_arena_impl.reset(.retain_capacity);
-    const state = try State.fromDb(frame_arena, db_conn);
+    const state = try State.fromDb(frame_arena, database);
 
     // Handle global events
     const evts = dvui.events();
@@ -191,10 +186,7 @@ pub fn frame() !dvui.App.Result {
             .{ .min_size_content = .{ .w = 100 }, .gravity_y = 0.5 },
         )) {
             const new_method: HttpMethod = @enumFromInt(method_choice);
-            db_conn.exec("update state set method=?;", .{@tagName(new_method)}) catch |err| {
-                std.log.err(">> sql error: {s}", .{db_conn.lastError()});
-                return err;
-            };
+            try database.exec("update state set method=?;", .{@tagName(new_method)});
         }
 
         // URL input
@@ -204,20 +196,14 @@ pub fn frame() !dvui.App.Result {
             .{ .expand = .horizontal },
         );
         if (dvui.firstFrame(url_entry.data().id)) {
-            if (try db_conn.row("select url from state limit 1", .{})) |row| {
-                defer row.deinit();
-                url_entry.textSet(row.text(0), false);
-            } else {
-                @panic("Failed to read state from in-memory db.");
-            }
+            const row = (try database.selectRow("select url from state limit 1", .{})).?;
+            defer row.deinit();
 
+            url_entry.textSet(row.text(0), false);
             dvui.focusWidget(url_entry.data().id, null, null);
         }
         if (url_entry.text_changed) {
-            db_conn.exec("update state set url=?;", .{url_entry.getText()}) catch |err| {
-                std.log.err(">> sql error: {s}", .{db_conn.lastError()});
-                return err;
-            };
+            try database.exec("update state set url=?;", .{url_entry.getText()});
         }
         url_entry.deinit();
 
