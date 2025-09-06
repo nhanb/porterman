@@ -3,6 +3,7 @@ const builtin = @import("builtin");
 const dvui = @import("dvui");
 const theme = @import("./theme.zig");
 const Database = @import("./Database.zig");
+const Queue = @import("./Queue.zig");
 
 const HttpMethod = enum {
     GET,
@@ -216,4 +217,8 @@ pub fn frame() !dvui.App.Result {
     }
 
     return .ok;
+}
+
+test "main" {
+    _ = Queue;
 }

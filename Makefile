@@ -5,3 +5,6 @@ watch:
 
 build:
 	zig build $(PARAMS)
+
+test:
+	zig build $(PARAMS) test --watch
