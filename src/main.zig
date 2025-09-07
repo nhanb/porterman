@@ -62,7 +62,7 @@ const State = struct {
 
         // Make the request
         const response = try client.fetch(.{
-            .method = .GET,
+            .method = std.meta.stringToEnum(std.http.Method, @tagName(self.method)),
             .location = .{ .url = url },
             .response_writer = &resp_writer.writer,
             .headers = .{
