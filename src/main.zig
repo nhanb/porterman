@@ -80,13 +80,30 @@ pub fn AppFrame() !dvui.App.Result {
     return frame();
 }
 
-pub fn frame() !dvui.App.Result {
-    var scroll = dvui.scrollArea(@src(), .{}, .{});
-    defer scroll.deinit();
+var showText = false;
 
-    const tl = dvui.textLayout(@src(), .{}, .{});
-    tl.addText(@embedFile("./text.txt"), .{});
-    tl.deinit();
+pub fn frame() !dvui.App.Result {
+    dvui.refresh(null, @src(), null);
+
+    var vbox = dvui.box(@src(), .{}, .{
+        .background = true,
+        .style = .window,
+        .expand = .both,
+    });
+    defer vbox.deinit();
+
+    dvui.label(@src(), "{d} fps", .{dvui.FPS()}, .{});
+
+    _ = dvui.checkbox(@src(), &showText, "Show TextLayout", .{});
+
+    if (showText) {
+        var scroll = dvui.scrollArea(@src(), .{}, .{});
+        defer scroll.deinit();
+
+        const tl = dvui.textLayout(@src(), .{}, .{});
+        tl.addText(@embedFile("./text.txt"), .{});
+        tl.deinit();
+    }
     return .ok;
 }
 
