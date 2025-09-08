@@ -3,77 +3,18 @@ const builtin = @import("builtin");
 const dvui = @import("dvui");
 const theme = @import("./theme.zig");
 const Database = @import("./Database.zig");
-const queue = @import("./queue.zig");
+const RingBuffer = @import("./queue.zig").RingBuffer;
+const message = @import("./message.zig");
+const State = @import("./State.zig");
+const enums = @import("./enums.zig");
 
-const HttpMethod = enum {
-    GET,
-    HEAD,
-    POST,
-    PUT,
-    DELETE,
-    OPTIONS,
-    TRACE,
-    PATCH,
-};
-
-const http_method_names = blk: {
-    const enum_fields = @typeInfo(HttpMethod).@"enum".fields;
+pub const http_method_names = blk: {
+    const enum_fields = @typeInfo(enums.HttpMethod).@"enum".fields;
     var names: [enum_fields.len][]const u8 = undefined;
     for (enum_fields, 0..) |field, i| {
         names[i] = field.name;
     }
     break :blk names;
-};
-
-const State = struct {
-    method: HttpMethod,
-    url: []const u8,
-    sending: bool,
-    response_status: std.http.Status,
-    response_body: []const u8,
-
-    pub fn fromDb(arena: std.mem.Allocator, db: Database) !State {
-        const row = (try db.selectRow(
-            \\select method, url, sending, response_status, response_body
-            \\from state limit 1;
-        , .{})).?;
-        defer row.deinit();
-
-        const status: i64 = @intCast(row.int(3));
-        return State{
-            .method = std.meta.stringToEnum(
-                HttpMethod,
-                try arena.dupe(u8, row.text(0)),
-            ).?,
-            .url = try arena.dupe(u8, row.text(1)),
-            .sending = row.int(2) == 1,
-            .response_status = @enumFromInt(status),
-            .response_body = try arena.dupe(u8, row.text(4)),
-        };
-    }
-
-    pub fn sendRequest(self: State) !void {
-        // Create the client
-        var client = std.http.Client{ .allocator = dba };
-        defer client.deinit();
-
-        var resp_writer = std.Io.Writer.Allocating.init(dba);
-        const url = self.url;
-
-        // Make the request
-        const response = try client.fetch(.{
-            .method = std.meta.stringToEnum(std.http.Method, @tagName(self.method)),
-            .location = .{ .url = url },
-            .response_writer = &resp_writer.writer,
-            .headers = .{
-                //.accept_encoding = .{ .override = "application/json" },
-            },
-        });
-
-        std.log.info(">> {any}: {s}", .{ response.status, resp_writer.written() });
-        //self.response_body = resp_writer.written();
-        //self.response_status = response.status;
-    }
 };
 
 // To be a dvui App:
@@ -102,13 +43,14 @@ pub const std_options: std.Options = .{
     .logFn = dvui.App.logFn,
 };
 
-var dba_impl = std.heap.DebugAllocator(.{}).init;
-const dba = dba_impl.allocator();
+var gpa_impl = std.heap.DebugAllocator(.{}).init;
+const gpa = gpa_impl.allocator();
 
-var frame_arena_impl = std.heap.ArenaAllocator.init(dba);
+var frame_arena_impl = std.heap.ArenaAllocator.init(gpa);
 const frame_arena = frame_arena_impl.allocator();
 
 var database: Database = undefined;
+var messages: RingBuffer(message.Message, 100) = .{};
 
 // Runs before the first frame, after backend and dvui.Window.init()
 // - runs between win.begin()/win.end()
@@ -147,15 +89,51 @@ pub fn frame() !dvui.App.Result {
     defer _ = frame_arena_impl.reset(.retain_capacity);
     const state = try State.fromDb(frame_arena, database);
 
+    // Handle messages sent back from off-thread tasks
+    while (messages.pop()) |msg| {
+        switch (msg) {
+            .response_received => |data| {
+                std.log.info(
+                    "msg: response_received {any} {s}",
+                    .{ data.status, data.body },
+                );
+                if (state.blocking_task) |task| {
+                    if (task == .send_request) {
+                        try database.execNoArgs(
+                            \\update state set blocking_task=null;
+                        );
+                    }
+                }
+            },
+        }
+
+        // Request another frame so that the latest changes made to the db
+        // are loaded into State.
+        dvui.refresh(null, @src(), null);
+    }
+
     // Handle global events
     const evts = dvui.events();
-    for (evts) |*e| {
+    event_handling: for (evts) |*e| {
+        if (state.blocking_task) |_| {
+            // TODO: show current blocking task in a status label or something
+            break :event_handling;
+        }
+
         switch (e.evt) {
             .key => |key| {
                 if (key.action == .down) {
                     //std.log.info(">> key down: {s}", .{@tagName(key.code)});
                     if (key.matchBind("ptm_send_request")) {
-                        try state.sendRequest();
+                        try database.exec(
+                            \\update state set blocking_task=?;
+                        , .{@tagName(enums.Task.send_request)});
+
+                        _ = try std.Thread.spawn(
+                            .{},
+                            message.sendRequest,
+                            .{ gpa, dvui.currentWindow(), state.method, state.url, &messages },
+                        );
                     }
                 }
             },
@@ -188,7 +166,7 @@ pub fn frame() !dvui.App.Result {
             &method_choice,
             .{ .min_size_content = .{ .w = 100 }, .gravity_y = 0.5 },
         )) {
-            const new_method: HttpMethod = @enumFromInt(method_choice);
+            const new_method: enums.HttpMethod = @enumFromInt(method_choice);
             try database.exec("update state set method=?;", .{@tagName(new_method)});
         }
 
@@ -211,8 +189,21 @@ pub fn frame() !dvui.App.Result {
         url_entry.deinit();
 
         // Go!
-        if (theme.button(@src(), "send", state.url.len == 0, .{ .gravity_y = 0.5 })) {
-            try state.sendRequest();
+        if (theme.button(
+            @src(),
+            "send",
+            state.blocking_task != null or state.url.len == 0,
+            .{ .gravity_y = 0.5 },
+        )) {
+            try database.exec(
+                \\update state set blocking_task=?;
+            , .{@tagName(enums.Task.send_request)});
+
+            _ = try std.Thread.spawn(
+                .{},
+                message.sendRequest,
+                .{ gpa, dvui.currentWindow(), state.method, state.url, &messages },
+            );
         }
     }
 
@@ -220,5 +211,5 @@ pub fn frame() !dvui.App.Result {
 }
 
 test "main" {
-    _ = queue;
+    _ = RingBuffer;
 }
