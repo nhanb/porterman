@@ -162,6 +162,28 @@ pub fn frame() !dvui.App.Result {
     defer vbox.deinit();
 
     {
+        var bottom_hbox = dvui.box(
+            @src(),
+            .{ .dir = .horizontal },
+            .{
+                .gravity_y = 1,
+                .expand = .horizontal,
+                .border = .{ .y = 1 },
+                .style = .window,
+                .background = true,
+            },
+        );
+        defer bottom_hbox.deinit();
+
+        dvui.labelNoFmt(
+            @src(),
+            state.app_status,
+            .{},
+            .{ .gravity_x = 1 },
+        );
+    }
+
+    {
         var hbox = dvui.box(
             @src(),
             .{ .dir = .horizontal },
@@ -238,18 +260,11 @@ pub fn frame() !dvui.App.Result {
             var scroll = dvui.scrollArea(@src(), .{}, .{ .expand = .both });
             defer scroll.deinit();
 
-            var resp_tl = dvui.textLayout(@src(), .{}, .{ .expand = .horizontal });
+            var resp_tl = dvui.textLayout(@src(), .{}, .{ .expand = .both });
             resp_tl.addText(state.response_body.?, .{});
             resp_tl.deinit();
         }
     }
-
-    dvui.labelNoFmt(
-        @src(),
-        state.app_status,
-        .{},
-        .{ .gravity_x = 1, .gravity_y = 1 },
-    );
 
     return .ok;
 }
