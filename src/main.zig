@@ -89,6 +89,7 @@ pub fn frame() !dvui.App.Result {
         .{
             .multiline = true,
             .break_lines = true,
+            .text = .{ .internal = .{ .limit = 800_000 } },
         },
         .{ .expand = .both },
     );
