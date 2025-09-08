@@ -24,7 +24,7 @@ pub const http_method_names = blk: {
 pub const dvui_app: dvui.App = .{
     .config = .{
         .options = .{
-            .size = .{ .w = 600.0, .h = 250.0 },
+            .size = .{ .w = 800, .h = 600 },
             .min_size = .{ .w = 400.0, .h = 250.0 },
             .title = "Porterman",
             .window_init_options = .{
@@ -261,9 +261,20 @@ pub fn frame() !dvui.App.Result {
             var scroll = dvui.scrollArea(@src(), .{}, .{ .expand = .both });
             defer scroll.deinit();
 
-            var resp_tl = dvui.textLayout(@src(), .{}, .{ .expand = .both });
-            resp_tl.addText(state.response_body.?, .{});
-            resp_tl.deinit();
+            var resp_text = dvui.textEntry(
+                @src(),
+                .{
+                    .multiline = true,
+                    .break_lines = true,
+                    .scroll_horizontal = false,
+                    .text = .{ .internal = .{ .limit = 400_000 } },
+                },
+                .{ .expand = .both },
+            );
+            if (dvui.firstFrame(resp_text.data().id)) {
+                resp_text.textSet(state.response_body.?, false);
+            }
+            resp_text.deinit();
         }
     }
 
