@@ -6,8 +6,9 @@ create table state (
         default 'GET',
     url text default 'https://httpbin.org/headers',
     sending integer check (sending in (0, 1)) default 0,
-    response_status integer check (0 <= response_status < 1024) default 0,
-    response_body text default '',
-    blocking_task text check(blocking_task in ('send_request')) default null
+    response_status integer check (0 <= response_status < 1024) null,
+    response_body text default null,
+    blocking_task text check(blocking_task in ('send_request')) default null,
+    app_status text default 'Ready'
 );
 insert into state(id) values(0);

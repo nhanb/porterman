@@ -88,19 +88,23 @@ pub fn AppFrame() !dvui.App.Result {
 pub fn frame() !dvui.App.Result {
     defer _ = frame_arena_impl.reset(.retain_capacity);
     const state = try State.fromDb(frame_arena, database);
+    const win = dvui.currentWindow();
 
     // Handle messages sent back from off-thread tasks
     while (messages.pop()) |msg| {
         switch (msg) {
             .response_received => |data| {
-                std.log.info(
-                    "msg: response_received {any} {s}",
-                    .{ data.status, data.body },
+                try database.exec(
+                    "update state set response_status=?, response_body=?",
+                    .{ @intFromEnum(data.status), data.body },
                 );
+
                 if (state.blocking_task) |task| {
                     if (task == .send_request) {
                         try database.execNoArgs(
-                            \\update state set blocking_task=null;
+                            \\update state set
+                            \\  blocking_task=null,
+                            \\  app_status='Finished request';
                         );
                     }
                 }
@@ -123,16 +127,20 @@ pub fn frame() !dvui.App.Result {
         switch (e.evt) {
             .key => |key| {
                 if (key.action == .down) {
-                    //std.log.info(">> key down: {s}", .{@tagName(key.code)});
+                    // TODO: refactor repeated event handling code
                     if (key.matchBind("ptm_send_request")) {
                         try database.exec(
-                            \\update state set blocking_task=?;
-                        , .{@tagName(enums.Task.send_request)});
+                            \\update state set
+                            \\  blocking_task=?,
+                            \\  app_status='Sending request...';
+                        ,
+                            .{@tagName(enums.Task.send_request)},
+                        );
 
                         _ = try std.Thread.spawn(
                             .{},
                             message.sendRequest,
-                            .{ gpa, dvui.currentWindow(), state.method, state.url, &messages },
+                            .{ gpa, win, state.method, state.url, &messages },
                         );
                     }
                 }
@@ -196,16 +204,49 @@ pub fn frame() !dvui.App.Result {
             .{ .gravity_y = 0.5 },
         )) {
             try database.exec(
-                \\update state set blocking_task=?;
-            , .{@tagName(enums.Task.send_request)});
+                \\update state set
+                \\  blocking_task=?,
+                \\  app_status='Sending request...';
+            ,
+                .{@tagName(enums.Task.send_request)},
+            );
 
             _ = try std.Thread.spawn(
                 .{},
                 message.sendRequest,
-                .{ gpa, dvui.currentWindow(), state.method, state.url, &messages },
+                .{ gpa, win, state.method, state.url, &messages },
             );
         }
     }
+
+    if (state.response_status) |status| {
+        dvui.label(
+            @src(),
+            "Response status: {d} {s}",
+            .{
+                status,
+                if (status.phrase()) |phrase| phrase else "",
+            },
+            .{},
+        );
+
+        dvui.label(@src(), "Response body:", .{}, .{});
+        {
+            var scroll = dvui.scrollArea(@src(), .{}, .{ .expand = .both });
+            defer scroll.deinit();
+
+            var resp_tl = dvui.textLayout(@src(), .{}, .{ .expand = .both });
+            resp_tl.addText(state.response_body.?, .{});
+            resp_tl.deinit();
+        }
+    }
+
+    dvui.labelNoFmt(
+        @src(),
+        state.app_status,
+        .{},
+        .{ .gravity_x = 1, .gravity_y = 1 },
+    );
 
     return .ok;
 }
