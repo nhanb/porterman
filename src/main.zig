@@ -55,7 +55,8 @@ var messages: RingBuffer(message.Message, 100) = .{};
 // Runs before the first frame, after backend and dvui.Window.init()
 // - runs between win.begin()/win.end()
 pub fn AppInit(win: *dvui.Window) !void {
-    //try dvui.addFont("NOTO", @embedFile("../src/fonts/NotoSansKR-Regular.ttf"), null);
+    try dvui.addFont("NotoSans", @embedFile("./fonts/NotoSans-Regular.ttf"), null);
+    try dvui.addFont("NotoSansBold", @embedFile("./fonts/NotoSans-Bold.ttf"), null);
 
     // Extra keybinds
     try win.keybinds.putNoClobber(win.gpa, "ptm_send_request", switch (builtin.target.os.tag) {

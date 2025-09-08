@@ -48,6 +48,6 @@ pub const dark = blk: {
 };
 
 fn applyCommonOpts(theme: *dvui.Theme) void {
-    _ = theme;
-    // TODO: customize here
+    theme.font_body.id = .fromName("NotoSans");
+    theme.font_body.size = 18;
 }
