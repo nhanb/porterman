@@ -24,7 +24,7 @@ pub const http_method_names = blk: {
 pub const dvui_app: dvui.App = .{
     .config = .{
         .options = .{
-            .size = .{ .w = 600.0, .h = 250.0 },
+            .size = .{ .w = 1920.0, .h = 1080.0 },
             .min_size = .{ .w = 400.0, .h = 250.0 },
             .title = "Porterman",
             .window_init_options = .{
@@ -80,23 +80,14 @@ pub fn AppFrame() !dvui.App.Result {
     return frame();
 }
 
+const huge_text = @embedFile("./text.txt");
+
 pub fn frame() !dvui.App.Result {
     var scroll = dvui.scrollArea(@src(), .{}, .{ .expand = .both });
     defer scroll.deinit();
 
-    const tl = dvui.textEntry(
-        @src(),
-        .{
-            .multiline = true,
-            .break_lines = true,
-            .text = .{ .internal = .{ .limit = 800_000 } },
-        },
-        .{ .expand = .both },
-    );
-    if (dvui.firstFrame(tl.data().id)) {
-        tl.textSet(@embedFile("./text.txt"), false);
-    }
-    tl.deinit();
+    dvui.labelNoFmt(@src(), huge_text[0..65535], .{}, .{});
+
     return .ok;
 }
 
