@@ -32,3 +32,17 @@ pub fn button(
 
     return !disabled and bw.clicked();
 }
+
+pub const light = blk: {
+    var theme = dvui.Theme.builtin.adwaita_light;
+    // TODO: customize here
+    theme.control.fill = theme.control.fill;
+    break :blk theme;
+};
+
+pub const dark = blk: {
+    var theme = dvui.Theme.builtin.adwaita_dark;
+    // TODO: customize here
+    theme.control.fill = theme.control.fill;
+    break :blk theme;
+};

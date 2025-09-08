@@ -57,12 +57,6 @@ var messages: RingBuffer(message.Message, 100) = .{};
 pub fn AppInit(win: *dvui.Window) !void {
     //try dvui.addFont("NOTO", @embedFile("../src/fonts/NotoSansKR-Regular.ttf"), null);
 
-    // If you need to set a theme based on the users preferred color scheme, do it here
-    win.theme = switch (win.backend.preferredColorScheme() orelse .light) {
-        .light => dvui.Theme.builtin.adwaita_light,
-        .dark => dvui.Theme.builtin.adwaita_dark,
-    };
-
     // Extra keybinds
     try win.keybinds.putNoClobber(win.gpa, "ptm_send_request", switch (builtin.target.os.tag) {
         .macos => dvui.enums.Keybind{ .command = true, .key = .enter },
@@ -89,6 +83,13 @@ pub fn frame() !dvui.App.Result {
     defer _ = frame_arena_impl.reset(.retain_capacity);
     const state = try State.fromDb(frame_arena, database);
     const win = dvui.currentWindow();
+
+    // React to changes in dark mode preference in real time.
+    // Not sure how costly this is, so move it to AppInit() if it's a problem.
+    win.theme = switch (win.backend.preferredColorScheme() orelse .light) {
+        .light => theme.light,
+        .dark => theme.dark,
+    };
 
     // Handle messages sent back from off-thread tasks
     while (messages.pop()) |msg| {
