@@ -176,6 +176,8 @@ pub fn frame() !dvui.App.Result {
         );
         defer bottom_hbox.deinit();
 
+        dvui.label(@src(), "{d} fps", .{dvui.FPS()}, .{});
+
         dvui.labelNoFmt(
             @src(),
             state.app_status,
@@ -261,19 +263,12 @@ pub fn frame() !dvui.App.Result {
             var scroll = dvui.scrollArea(@src(), .{}, .{ .expand = .both });
             defer scroll.deinit();
 
-            var resp_text = dvui.textEntry(
+            var resp_text = dvui.textLayout(
                 @src(),
-                .{
-                    .multiline = true,
-                    .break_lines = true,
-                    .scroll_horizontal = false,
-                    .text = .{ .internal = .{ .limit = 400_000 } },
-                },
+                .{ .break_lines = true },
                 .{ .expand = .both },
             );
-            if (dvui.firstFrame(resp_text.data().id)) {
-                resp_text.textSet(state.response_body.?, false);
-            }
+            resp_text.addText(state.response_body.?, .{});
             resp_text.deinit();
         }
     }
