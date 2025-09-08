@@ -49,8 +49,14 @@ pub fn sendRequest(
     std.log.info("sendRequest: {any} {s}", .{ method, url });
 
     // Make the request
+
+    const std_method: std.http.Method = std.meta.stringToEnum(
+        std.http.Method,
+        @tagName(method),
+    ).?;
+
     const response = try client.fetch(.{
-        .method = std.meta.stringToEnum(std.http.Method, @tagName(method)),
+        .method = std_method,
         .location = .{ .url = url },
         .response_writer = &resp_writer.writer,
         .headers = .{

@@ -8,3 +8,6 @@ build:
 
 test:
 	zig build $(PARAMS) test --watch
+
+clean:
+	rm -rf zig-out .zig-cache

@@ -36,13 +36,18 @@ pub fn button(
 pub const light = blk: {
     var theme = dvui.Theme.builtin.adwaita_light;
     // TODO: customize here
-    theme.control.fill = theme.control.fill;
+    applyCommonOpts(&theme);
     break :blk theme;
 };
 
 pub const dark = blk: {
     var theme = dvui.Theme.builtin.adwaita_dark;
     // TODO: customize here
-    theme.control.fill = theme.control.fill;
+    applyCommonOpts(&theme);
     break :blk theme;
 };
+
+fn applyCommonOpts(theme: *dvui.Theme) void {
+    _ = theme;
+    // TODO: customize here
+}

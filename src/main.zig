@@ -121,7 +121,6 @@ pub fn frame() !dvui.App.Result {
     const evts = dvui.events();
     event_handling: for (evts) |*e| {
         if (state.blocking_task) |_| {
-            // TODO: show current blocking task in a status label or something
             break :event_handling;
         }
 
@@ -143,6 +142,9 @@ pub fn frame() !dvui.App.Result {
                             message.sendRequest,
                             .{ gpa, win, state.method, state.url, &messages },
                         );
+
+                        // Don't leak this event to control widgets
+                        e.handle(@src(), win.data());
                     }
                 }
             },
@@ -236,7 +238,7 @@ pub fn frame() !dvui.App.Result {
             var scroll = dvui.scrollArea(@src(), .{}, .{ .expand = .both });
             defer scroll.deinit();
 
-            var resp_tl = dvui.textLayout(@src(), .{}, .{ .expand = .both });
+            var resp_tl = dvui.textLayout(@src(), .{}, .{ .expand = .horizontal });
             resp_tl.addText(state.response_body.?, .{});
             resp_tl.deinit();
         }
