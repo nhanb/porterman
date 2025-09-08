@@ -81,11 +81,20 @@ pub fn AppFrame() !dvui.App.Result {
 }
 
 pub fn frame() !dvui.App.Result {
-    var scroll = dvui.scrollArea(@src(), .{}, .{});
+    var scroll = dvui.scrollArea(@src(), .{}, .{ .expand = .both });
     defer scroll.deinit();
 
-    const tl = dvui.textLayout(@src(), .{}, .{});
-    tl.addText(@embedFile("./text.txt"), .{});
+    const tl = dvui.textEntry(
+        @src(),
+        .{
+            .multiline = true,
+            .break_lines = true,
+        },
+        .{ .expand = .both },
+    );
+    if (dvui.firstFrame(tl.data().id)) {
+        tl.textSet(@embedFile("./text.txt"), false);
+    }
     tl.deinit();
     return .ok;
 }
