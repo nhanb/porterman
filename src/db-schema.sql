@@ -9,7 +9,6 @@ create table state (
     sending integer check (sending in (0, 1)) default 0,
     response_status integer check (0 <= response_status < 1024) null,
     response_body text default null,
-    blocking_task text check(blocking_task in ('send_request')) default null,
     app_status text default 'Ready'
 );
 insert into state(id) values(0);
@@ -17,5 +16,6 @@ insert into state(id) values(0);
 create table task (
     id integer primary key,
     name text check(name in ('send_request')),
+    blocking integer check(blocking in (0, 1)) default 0,
     data blob -- jsonb
 );

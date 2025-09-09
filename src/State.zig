@@ -9,41 +9,41 @@ url: []const u8,
 sending: bool,
 response_status: ?std.http.Status,
 response_body: ?[]const u8,
-blocking_task: ?enums.Task,
 app_status: []const u8,
+has_blocking_task: bool,
 
 pub fn fromDb(arena: std.mem.Allocator, db: Database) !State {
-    const row = (try db.selectRow(
+    const state_row = (try db.selectRow(
         \\select
-        \\  method, url, sending, response_status, response_body, blocking_task,
-        \\  app_status
+        \\  method, url, sending, response_status, response_body, app_status
         \\from state limit 1;
     , .{})).?;
-    defer row.deinit();
+    defer state_row.deinit();
+
+    const num_blocking_tasks = try db.selectInt(
+        "select count(*) from task where blocking=1;",
+        .{},
+    );
 
     return State{
         .method = std.meta.stringToEnum(
             enums.HttpMethod,
-            try arena.dupe(u8, row.text(0)),
+            try arena.dupe(u8, state_row.text(0)),
         ).?,
-        .url = try arena.dupe(u8, row.text(1)),
-        .sending = row.int(2) == 1,
+        .url = try arena.dupe(u8, state_row.text(1)),
+        .sending = state_row.int(2) == 1,
 
-        .response_status = if (row.nullableInt(3)) |status|
+        .response_status = if (state_row.nullableInt(3)) |status|
             @enumFromInt(status)
         else
             null,
 
-        .response_body = if (row.nullableText(4)) |text|
+        .response_body = if (state_row.nullableText(4)) |text|
             try arena.dupe(u8, text)
         else
             null,
 
-        .blocking_task = if (row.nullableText(5)) |task_str|
-            std.meta.stringToEnum(enums.Task, task_str)
-        else
-            null,
-
-        .app_status = try arena.dupe(u8, row.text(6)),
+        .app_status = try arena.dupe(u8, state_row.text(5)),
+        .has_blocking_task = num_blocking_tasks > 0,
     };
 }

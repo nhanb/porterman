@@ -95,7 +95,7 @@ pub fn frame() !dvui.App.Result {
     // Handle global events
     const evts = dvui.events();
     event_handling: for (evts) |*e| {
-        if (state.blocking_task) |_| {
+        if (state.has_blocking_task) {
             break :event_handling;
         }
 
@@ -103,17 +103,16 @@ pub fn frame() !dvui.App.Result {
             .key => |key| {
                 if (key.action == .down) {
                     // TODO: refactor repeated event handling code
-                    if (key.matchBind("ptm_send_request")) {
-                        try database.exec(
-                            \\update state set
-                            \\  blocking_task=?,
-                            \\  app_status='Sending request...';
-                        ,
-                            .{@tagName(enums.Task.send_request)},
-                        );
 
+                    try database.execNoArgs(
+                        "update state set app_status='Sending request...';",
+                    );
+
+                    if (key.matchBind("ptm_send_request")) {
                         const task_id = try database.selectInt(
-                            \\insert into task (name, data) values (?,
+                            \\insert into task (blocking, name, data) values (
+                            \\  1,
+                            \\  ?,
                             \\  jsonb_object(
                             \\    'method', ?,
                             \\    'url', ?
@@ -215,19 +214,17 @@ pub fn frame() !dvui.App.Result {
         if (theme.button(
             @src(),
             "send",
-            state.blocking_task != null or state.url.len == 0,
+            state.has_blocking_task or state.url.len == 0,
             .{ .gravity_y = 0.5 },
         )) {
-            try database.exec(
-                \\update state set
-                \\  blocking_task=?,
-                \\  app_status='Sending request...';
-            ,
-                .{@tagName(enums.Task.send_request)},
+            try database.execNoArgs(
+                "update state set app_status='Sending request...';",
             );
 
             const task_id = try database.selectInt(
-                \\insert into task (name, data) values (?,
+                \\insert into task (blocking, name, data) values (
+                \\  1,
+                \\  ?,
                 \\  jsonb_object(
                 \\    'method', ?,
                 \\    'url', ?

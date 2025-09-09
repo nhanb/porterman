@@ -37,20 +37,12 @@ pub fn sendRequest(
         .method = http_method,
     });
 
-    try db.exec("delete from task where id=?", .{task_id});
-
     try db.exec(
         "update state set response_status=?, response_body=?",
         .{ @intFromEnum(result.status), response.written() },
     );
-
-    // TODO: replace blocking_task with a task.blocking bool column instead?
-    try db.execNoArgs(
-        \\update state set
-        \\  blocking_task=null,
-        \\  app_status='Finished request'
-        \\where blocking_task='send_request';
-    );
+    try db.exec("delete from task where id=?", .{task_id});
+    try db.execNoArgs("update state set app_status='Finished request'");
 
     dvui.refresh(win, @src(), null);
 }
