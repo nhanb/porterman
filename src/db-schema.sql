@@ -1,4 +1,5 @@
 -- Must keep certain text CHECK constraints in sync with enums.zig
+
 create table state (
     id integer primary key check(id=0),
     method text
@@ -12,3 +13,9 @@ create table state (
     app_status text default 'Ready'
 );
 insert into state(id) values(0);
+
+create table task (
+    id integer primary key,
+    name text check(name in ('send_request')),
+    data blob -- jsonb
+);

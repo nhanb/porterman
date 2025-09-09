@@ -1,10 +1,11 @@
 const std = @import("std");
 const builtin = @import("builtin");
 const dvui = @import("dvui");
+const zqlite = @import("zqlite");
 const theme = @import("./theme.zig");
 const Database = @import("./Database.zig");
 const RingBuffer = @import("./queue.zig").RingBuffer;
-const message = @import("./message.zig");
+const tasks = @import("./tasks.zig");
 const State = @import("./State.zig");
 const enums = @import("./enums.zig");
 
@@ -50,7 +51,6 @@ var frame_arena_impl = std.heap.ArenaAllocator.init(gpa);
 const frame_arena = frame_arena_impl.allocator();
 
 var database: Database = undefined;
-var messages: RingBuffer(message.Message, 100) = .{};
 
 // Runs before the first frame, after backend and dvui.Window.init()
 // - runs between win.begin()/win.end()
@@ -92,34 +92,6 @@ pub fn frame() !dvui.App.Result {
         .dark => theme.dark,
     };
 
-    // Handle messages sent back from off-thread tasks
-    while (messages.pop()) |msg| {
-        switch (msg) {
-            .response_received => |data| {
-                defer msg.deinit(gpa);
-
-                try database.exec(
-                    "update state set response_status=?, response_body=?",
-                    .{ @intFromEnum(data.status), data.body },
-                );
-
-                if (state.blocking_task) |task| {
-                    if (task == .send_request) {
-                        try database.execNoArgs(
-                            \\update state set
-                            \\  blocking_task=null,
-                            \\  app_status='Finished request';
-                        );
-                    }
-                }
-            },
-        }
-
-        // Request another frame so that the latest changes made to the db
-        // are loaded into State.
-        dvui.refresh(null, @src(), null);
-    }
-
     // Handle global events
     const evts = dvui.events();
     event_handling: for (evts) |*e| {
@@ -140,10 +112,23 @@ pub fn frame() !dvui.App.Result {
                             .{@tagName(enums.Task.send_request)},
                         );
 
+                        const task_id = try database.selectInt(
+                            \\insert into task (name, data) values (?,
+                            \\  jsonb_object(
+                            \\    'method', ?,
+                            \\    'url', ?
+                            \\  )
+                            \\) returning id;
+                        , .{
+                            @tagName(enums.Task.send_request),
+                            @tagName(state.method),
+                            state.url,
+                        });
+
                         _ = try std.Thread.spawn(
                             .{},
-                            message.sendRequest,
-                            .{ gpa, win, state.method, state.url, &messages },
+                            tasks.sendRequest,
+                            .{ gpa, win, task_id },
                         );
 
                         // Don't leak this event to control widgets
@@ -241,10 +226,23 @@ pub fn frame() !dvui.App.Result {
                 .{@tagName(enums.Task.send_request)},
             );
 
+            const task_id = try database.selectInt(
+                \\insert into task (name, data) values (?,
+                \\  jsonb_object(
+                \\    'method', ?,
+                \\    'url', ?
+                \\  )
+                \\) returning id;
+            , .{
+                @tagName(enums.Task.send_request),
+                @tagName(state.method),
+                state.url,
+            });
+
             _ = try std.Thread.spawn(
                 .{},
-                message.sendRequest,
-                .{ gpa, win, state.method, state.url, &messages },
+                tasks.sendRequest,
+                .{ gpa, win, task_id },
             );
         }
     }

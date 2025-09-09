@@ -7,8 +7,10 @@ const Database = @This();
 conn: zqlite.Conn,
 
 pub fn init() !Database {
-    const flags = zqlite.OpenFlags.Create | zqlite.OpenFlags.EXResCode;
-    const conn = try zqlite.open(":memory:", flags);
+    const flags = zqlite.OpenFlags.Create | zqlite.OpenFlags.EXResCode | zqlite.OpenFlags.Uri;
+    // A shared-cache in-memory db can be access from multiple threads
+    // as long as each thread uses its own connection
+    const conn = try zqlite.open("file::memory:?cache=shared", flags);
     const db = Database{ .conn = conn };
     try db.execNoArgs(
         \\PRAGMA foreign_keys = 1;
@@ -43,8 +45,8 @@ pub fn selectRow(self: Database, sql: []const u8, args: anytype) !?zqlite.Row {
 }
 
 /// Assumes the result is only 1 row with 1 column, which is an int.
-pub fn selectInt(self: Database, sql: []const u8) !i64 {
-    var row = (self.conn.row(sql, .{}) catch |err| {
+pub fn selectInt(self: Database, sql: []const u8, args: anytype) !i64 {
+    var row = (self.conn.row(sql, args) catch |err| {
         std.log.err("sql: {s}", .{self.conn.lastError()});
         return err;
     }).?;
