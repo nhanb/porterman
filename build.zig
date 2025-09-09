@@ -17,9 +17,6 @@ pub fn build(b: *std.Build) void {
             .target = target,
             .optimize = optimize,
         }),
-        // XXX: Native backend currently crashing due to Zig bug.
-        // https://github.com/ziglang/zig/issues/24364
-        .use_llvm = true,
     });
 
     // This declares intent for the executable to be installed into the
