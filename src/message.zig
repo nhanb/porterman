@@ -24,7 +24,7 @@ pub const Message = union(MessageType) {
         };
     }
 
-    pub fn deinit(self: *Message, gpa: Allocator) void {
+    pub fn deinit(self: Message, gpa: Allocator) void {
         switch (self) {
             .response_received => {
                 gpa.free(self.response_received.body);
@@ -40,34 +40,28 @@ pub fn sendRequest(
     url: []const u8,
     msg_queue: *RingBuffer(Message, 100),
 ) !void {
-    // Create the client
-    var client = std.http.Client{ .allocator = gpa };
+    var response: std.Io.Writer.Allocating = .init(gpa);
+    defer response.deinit();
+
+    var client: std.http.Client = .{ .allocator = gpa };
     defer client.deinit();
-
-    var resp_writer = std.Io.Writer.Allocating.init(gpa);
-
-    std.log.info("sendRequest: {any} {s}", .{ method, url });
-
-    // Make the request
 
     const std_method: std.http.Method = std.meta.stringToEnum(
         std.http.Method,
         @tagName(method),
     ).?;
 
-    const response = try client.fetch(.{
-        .method = std_method,
+    const result = try client.fetch(.{
         .location = .{ .url = url },
-        .response_writer = &resp_writer.writer,
-        .headers = .{
-            //.accept_encoding = .{ .override = "application/json" },
-        },
+        .response_writer = &response.writer,
+        .headers = .{},
+        .method = std_method,
     });
 
     _ = msg_queue.push(Message.init(
         gpa,
         .response_received,
-        .{ .status = response.status, .body = resp_writer.written() },
+        .{ .status = result.status, .body = response.written() },
     )).?;
 
     dvui.refresh(win, @src(), null);

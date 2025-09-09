@@ -96,6 +96,8 @@ pub fn frame() !dvui.App.Result {
     while (messages.pop()) |msg| {
         switch (msg) {
             .response_received => |data| {
+                defer msg.deinit(gpa);
+
                 try database.exec(
                     "update state set response_status=?, response_body=?",
                     .{ @intFromEnum(data.status), data.body },
