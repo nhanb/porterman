@@ -37,12 +37,16 @@ pub fn sendRequest(
         .method = http_method,
     });
 
+    try db.begin();
+    errdefer db.rollback();
+
     try db.exec(
         "update state set response_status=?, response_body=?",
         .{ @intFromEnum(result.status), response.written() },
     );
     try db.exec("delete from task where id=?", .{task_id});
     try db.execNoArgs("update state set app_status='Finished request'");
+    try db.commit();
 
     dvui.refresh(win, @src(), null);
 }

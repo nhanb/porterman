@@ -23,6 +23,18 @@ pub fn deinit(self: Database) void {
     self.conn.close();
 }
 
+pub fn begin(self: Database) !void {
+    try self.conn.execNoArgs("begin");
+}
+
+pub fn commit(self: Database) !void {
+    try self.conn.execNoArgs("commit");
+}
+
+pub fn rollback(self: Database) void {
+    self.conn.execNoArgs("rollback") catch {};
+}
+
 pub fn exec(self: Database, sql: []const u8, args: anytype) !void {
     self.conn.exec(sql, args) catch |err| {
         std.log.err("sql: {s}", .{self.conn.lastError()});

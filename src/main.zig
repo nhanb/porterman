@@ -102,13 +102,16 @@ pub fn frame() !dvui.App.Result {
         switch (e.evt) {
             .key => |key| {
                 if (key.action == .down) {
-                    // TODO: refactor repeated event handling code
-
-                    try database.execNoArgs(
-                        "update state set app_status='Sending request...';",
-                    );
-
                     if (key.matchBind("ptm_send_request")) {
+                        // TODO: refactor repeated event handling code
+
+                        try database.begin();
+                        errdefer database.rollback();
+
+                        try database.execNoArgs(
+                            "update state set app_status='Sending request...';",
+                        );
+
                         const task_id = try database.selectInt(
                             \\insert into task (blocking, name, data) values (
                             \\  1,
@@ -123,6 +126,8 @@ pub fn frame() !dvui.App.Result {
                             @tagName(state.method),
                             state.url,
                         });
+
+                        try database.commit();
 
                         _ = try std.Thread.spawn(
                             .{},
@@ -217,6 +222,9 @@ pub fn frame() !dvui.App.Result {
             state.has_blocking_task or state.url.len == 0,
             .{ .gravity_y = 0.5 },
         )) {
+            try database.begin();
+            errdefer database.rollback();
+
             try database.execNoArgs(
                 "update state set app_status='Sending request...';",
             );
@@ -235,6 +243,8 @@ pub fn frame() !dvui.App.Result {
                 @tagName(state.method),
                 state.url,
             });
+
+            try database.commit();
 
             _ = try std.Thread.spawn(
                 .{},
