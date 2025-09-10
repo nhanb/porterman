@@ -1,5 +1,7 @@
 const std = @import("std");
 const dvui = @import("dvui");
+const Rect = dvui.Rect;
+const Color = dvui.Color;
 
 /// Thin wrapper to easily toggle button's disabled state.
 /// It adds the necessary styling, and always returns false when disabled.
@@ -50,4 +52,20 @@ pub const dark = blk: {
 fn applyCommonOpts(theme: *dvui.Theme) void {
     theme.font_body.id = .fromName("NotoSans");
     theme.font_body.size = 18;
+}
+
+pub fn initDefaults() void {
+    const corner_radius = Rect.all(0);
+    dvui.ButtonWidget.defaults.corner_radius = corner_radius;
+    dvui.DropdownWidget.defaults.corner_radius = corner_radius;
+    dvui.TextEntryWidget.defaults.corner_radius = corner_radius;
+    dvui.FloatingMenuWidget.defaults.corner_radius = corner_radius;
+    dvui.ScrollAreaWidget.defaults.corner_radius = corner_radius;
+
+    const border = Rect.all(1);
+    dvui.ButtonWidget.defaults.border = border;
+    dvui.DropdownWidget.defaults.border = border;
+    dvui.ScrollAreaWidget.defaults.border = border;
+
+    dvui.ScrollAreaWidget.defaults.margin = .all(5);
 }

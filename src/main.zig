@@ -55,6 +55,8 @@ var database: Database = undefined;
 // Runs before the first frame, after backend and dvui.Window.init()
 // - runs between win.begin()/win.end()
 pub fn AppInit(win: *dvui.Window) !void {
+    theme.initDefaults();
+
     try dvui.addFont("NotoSans", @embedFile("./fonts/NotoSans-Regular.ttf"), null);
     try dvui.addFont("NotoSansBold", @embedFile("./fonts/NotoSans-Bold.ttf"), null);
 
@@ -160,7 +162,7 @@ pub fn frame() !dvui.App.Result {
             .{
                 .gravity_y = 1,
                 .expand = .horizontal,
-                .border = .{ .y = 1 },
+                //.border = .{ .y = 1 },
                 .style = .window,
                 .background = true,
             },
