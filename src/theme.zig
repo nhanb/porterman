@@ -62,10 +62,14 @@ pub fn initDefaults() void {
     dvui.FloatingMenuWidget.defaults.corner_radius = corner_radius;
     dvui.ScrollAreaWidget.defaults.corner_radius = corner_radius;
 
-    const border = Rect.all(1);
-    dvui.ButtonWidget.defaults.border = border;
-    dvui.DropdownWidget.defaults.border = border;
-    dvui.ScrollAreaWidget.defaults.border = border;
-
+    dvui.ScrollAreaWidget.defaults.border = .all(1);
     dvui.ScrollAreaWidget.defaults.margin = .all(5);
+
+    dvui.ButtonWidget.defaults.border = .{ .x = 1, .y = 1, .h = 0, .w = 0 };
+    dvui.ButtonWidget.defaults.color_border = .white;
+    dvui.ButtonWidget.defaults.box_shadow = .{ .offset = .{ .x = 1, .y = 1 } };
+
+    dvui.DropdownWidget.defaults.border = .{ .x = 1, .y = 1, .h = 0, .w = 0 };
+    dvui.DropdownWidget.defaults.color_border = .white;
+    dvui.DropdownWidget.defaults.box_shadow = .{ .offset = .{ .x = 1, .y = 1 } };
 }
