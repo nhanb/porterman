@@ -1,5 +1,9 @@
 PARAMS = -fsys=sdl3 -fsys=freetype -fsys=sqlite3
 
+entr:
+	find . -path '*/src/*' -or -name '*.zig' -not -path '*/.zig-cache/*' | \
+		entr -rc zig build run $(PARAMS)
+
 watch:
 	zig build $(PARAMS) run --watch
 
