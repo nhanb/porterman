@@ -46,7 +46,8 @@ pub fn AppFrame() !dvui.App.Result {
     return frame();
 }
 
-var showText = false;
+var show_text = true;
+var cache_layout = true;
 
 pub fn frame() !dvui.App.Result {
     dvui.refresh(null, @src(), null);
@@ -60,13 +61,18 @@ pub fn frame() !dvui.App.Result {
 
     dvui.label(@src(), "{d} fps", .{dvui.FPS()}, .{});
 
-    _ = dvui.checkbox(@src(), &showText, "Show TextLayout", .{});
+    _ = dvui.checkbox(@src(), &show_text, "Show TextLayout", .{});
+    _ = dvui.checkbox(@src(), &cache_layout, "Enable .cache_layout", .{});
 
-    if (showText) {
+    if (show_text) {
         var scroll = dvui.scrollArea(@src(), .{}, .{});
         defer scroll.deinit();
 
-        const tl = dvui.textLayout(@src(), .{}, .{});
+        const tl = dvui.textLayout(
+            @src(),
+            .{ .cache_layout = cache_layout },
+            .{},
+        );
         tl.addText(@embedFile("./text.txt"), .{});
         tl.deinit();
     }
