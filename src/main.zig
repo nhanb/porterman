@@ -274,7 +274,7 @@ pub fn frame() !dvui.App.Result {
 
             var resp_text = dvui.textLayout(
                 @src(),
-                .{ .break_lines = true },
+                .{ .break_lines = true, .cache_layout = true },
                 .{ .expand = .both },
             );
             resp_text.addText(state.response_body.?, .{});
