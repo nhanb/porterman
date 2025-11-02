@@ -3,6 +3,7 @@ const Allocator = std.mem.Allocator;
 const dvui = @import("dvui");
 const enums = @import("enums.zig");
 const Database = @import("Database.zig");
+const curl = @import("curl.zig");
 
 pub fn sendRequest(
     gpa: std.mem.Allocator,
@@ -27,15 +28,8 @@ pub fn sendRequest(
     var response: std.Io.Writer.Allocating = .init(gpa);
     defer response.deinit();
 
-    var client: std.http.Client = .{ .allocator = gpa };
-    defer client.deinit();
-
-    const result = try client.fetch(.{
-        .location = .{ .url = url },
-        .response_writer = &response.writer,
-        .headers = .{},
-        .method = http_method,
-    });
+    _ = http_method;
+    const result = try curl.get(gpa, url, &response.writer);
 
     try db.begin();
     errdefer db.rollback();

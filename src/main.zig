@@ -7,6 +7,7 @@ const Database = @import("./Database.zig");
 const tasks = @import("./tasks.zig");
 const State = @import("./State.zig");
 const enums = @import("./enums.zig");
+const curl = @import("./curl.zig");
 
 pub const http_method_names = blk: {
     const enum_fields = @typeInfo(enums.HttpMethod).@"enum".fields;
@@ -54,6 +55,8 @@ var database: Database = undefined;
 // Runs before the first frame, after backend and dvui.Window.init()
 // - runs between win.begin()/win.end()
 pub fn AppInit(win: *dvui.Window) !void {
+    try curl.init();
+
     theme.initDefaults();
 
     try dvui.addFont("SourceSans", @embedFile("./fonts/SourceSans3-Regular.ttf"), null);
@@ -76,6 +79,7 @@ pub fn AppInit(win: *dvui.Window) !void {
 pub fn AppDeinit() void {
     std.log.info("AppDeinit()", .{});
     database.deinit();
+    curl.deinit();
 }
 
 // Run each frame to do normal UI

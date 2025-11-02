@@ -25,6 +25,11 @@ pub fn build(b: *std.Build) void {
     // by passing `--prefix` or `-p`.
     b.installArtifact(exe);
 
+    // curl
+    // TODO find a way to bundle a statically compiled libcurl dll on Windows,
+    // because the libcurl bundle in Windows 10/11 does not have all features.
+    exe.linkSystemLibrary("libcurl");
+
     // dvui
     const dvui_dep = b.dependency("dvui", .{
         .target = target,

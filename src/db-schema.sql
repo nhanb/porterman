@@ -7,7 +7,7 @@ create table state (
         default 'GET',
     url text default 'https://hi.imnhan.com/',
     sending integer check (sending in (0, 1)) default 0,
-    response_status integer check (0 <= response_status < 1024) null,
+    response_status integer check (0 <= response_status < 1024) default null,
     response_body text default null,
     app_status text default 'Ready'
 );
