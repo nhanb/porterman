@@ -50,26 +50,28 @@ pub const dark = blk: {
 };
 
 fn applyCommonOpts(theme: *dvui.Theme) void {
-    theme.font_body.id = .fromName("NotoSans");
-    theme.font_body.size = 18;
+    theme.font_body.id = .fromName("SourceSans");
+    theme.font_title_4.id = .fromName("SourceCodePro");
+    theme.font_title_4.size = theme.font_body.size - 2;
+    theme.* = theme.fontSizeAdd(5);
 }
 
 pub fn initDefaults() void {
-    const corner_radius = Rect.all(0);
-    dvui.ButtonWidget.defaults.corner_radius = corner_radius;
-    dvui.DropdownWidget.defaults.corner_radius = corner_radius;
-    dvui.TextEntryWidget.defaults.corner_radius = corner_radius;
-    dvui.FloatingMenuWidget.defaults.corner_radius = corner_radius;
-    dvui.ScrollAreaWidget.defaults.corner_radius = corner_radius;
+    //const corner_radius = Rect.all(0);
+    //dvui.ButtonWidget.defaults.corner_radius = corner_radius;
+    //dvui.DropdownWidget.defaults.corner_radius = corner_radius;
+    //dvui.TextEntryWidget.defaults.corner_radius = corner_radius;
+    //dvui.FloatingMenuWidget.defaults.corner_radius = corner_radius;
+    //dvui.ScrollAreaWidget.defaults.corner_radius = corner_radius;
 
-    dvui.ScrollAreaWidget.defaults.border = .all(1);
-    dvui.ScrollAreaWidget.defaults.margin = .all(5);
+    //dvui.ScrollAreaWidget.defaults.border = .all(1);
+    //dvui.ScrollAreaWidget.defaults.margin = .all(5);
 
-    dvui.ButtonWidget.defaults.border = .{ .x = 1, .y = 1, .h = 0, .w = 0 };
-    dvui.ButtonWidget.defaults.color_border = .white;
-    dvui.ButtonWidget.defaults.box_shadow = .{ .offset = .{ .x = 1, .y = 1 } };
+    //dvui.ButtonWidget.defaults.border = .{ .x = 1, .y = 1, .h = 0, .w = 0 };
+    //dvui.ButtonWidget.defaults.color_border = .white;
+    //dvui.ButtonWidget.defaults.box_shadow = .{ .offset = .{ .x = 1, .y = 1 } };
 
-    dvui.DropdownWidget.defaults.border = .{ .x = 1, .y = 1, .h = 0, .w = 0 };
-    dvui.DropdownWidget.defaults.color_border = .white;
-    dvui.DropdownWidget.defaults.box_shadow = .{ .offset = .{ .x = 1, .y = 1 } };
+    //dvui.DropdownWidget.defaults.border = .{ .x = 1, .y = 1, .h = 0, .w = 0 };
+    //dvui.DropdownWidget.defaults.color_border = .white;
+    //dvui.DropdownWidget.defaults.box_shadow = .{ .offset = .{ .x = 1, .y = 1 } };
 }

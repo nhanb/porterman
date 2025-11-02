@@ -33,12 +33,12 @@
     // internet connectivity.
     .dependencies = .{
         .dvui = .{
-            .url = "git+https://github.com/david-vanderson/dvui.git?ref=main#c20c4b6741f338ac31b6b268a187db64341d7af6",
-            .hash = "dvui-0.4.0-dev-AQFJmfUO1AB_giaogfoS_4zifbJz15KVs2sGesXWlSxF",
+            .url = "git+https://github.com/david-vanderson/dvui.git?ref=main#e134e7d47ff9aa3c9828979558b26d1007218b9c",
+            .hash = "dvui-0.4.0-dev-AQFJmc9y1gAalkHZ0P34CyGkfTxURTQfoE14WFyR47Ft",
         },
         .zqlite = .{
-            .url = "git+https://github.com/karlseguin/zqlite.zig?ref=master#74e661633ffe04fadc214ad07857633fa339f79c",
-            .hash = "zqlite-0.0.0-RWLaY81-lQAbR_uUQJeKmTzYi16C9Zvl-BjrBOavQfeK",
+            .url = "git+https://github.com/karlseguin/zqlite.zig?ref=master#e3b6972230ccb1d2069e1ff298699d73b3180b3c",
+            .hash = "zqlite-0.0.0-RWLaY-C4mADQvgmoLhHD-cHtCgKYdQNAoqASip2uJzBL",
         },
     },
     .paths = .{

@@ -4,7 +4,6 @@ const dvui = @import("dvui");
 const zqlite = @import("zqlite");
 const theme = @import("./theme.zig");
 const Database = @import("./Database.zig");
-const RingBuffer = @import("./queue.zig").RingBuffer;
 const tasks = @import("./tasks.zig");
 const State = @import("./State.zig");
 const enums = @import("./enums.zig");
@@ -57,8 +56,10 @@ var database: Database = undefined;
 pub fn AppInit(win: *dvui.Window) !void {
     theme.initDefaults();
 
-    try dvui.addFont("NotoSans", @embedFile("./fonts/NotoSans-Regular.ttf"), null);
-    try dvui.addFont("NotoSansBold", @embedFile("./fonts/NotoSans-Bold.ttf"), null);
+    try dvui.addFont("SourceSans", @embedFile("./fonts/SourceSans3-Regular.ttf"), null);
+    try dvui.addFont("SourceSansBold", @embedFile("./fonts/SourceSans3-Bold.ttf"), null);
+    try dvui.addFont("SourceCodePro", @embedFile("./fonts/SourceCodePro-Regular.ttf"), null);
+    try dvui.addFont("SourceCodeProBold", @embedFile("./fonts/SourceCodePro-Bold.ttf"), null);
 
     // Extra keybinds
     try win.keybinds.putNoClobber(win.gpa, "ptm_send_request", switch (builtin.target.os.tag) {
@@ -275,7 +276,7 @@ pub fn frame() !dvui.App.Result {
             var resp_text = dvui.textLayout(
                 @src(),
                 .{ .break_lines = true, .cache_layout = true },
-                .{ .expand = .both },
+                .{ .expand = .both, .font = win.theme.font_title_4 },
             );
             resp_text.addText(state.response_body.?, .{});
             resp_text.deinit();
@@ -285,6 +286,4 @@ pub fn frame() !dvui.App.Result {
     return .ok;
 }
 
-test "main" {
-    _ = RingBuffer;
-}
+test "main" {}
