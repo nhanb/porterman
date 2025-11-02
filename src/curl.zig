@@ -36,6 +36,9 @@ pub fn get(gpa: mem.Allocator, url: []const u8, writer: *Io.Writer) !Response {
     if (c.curl_easy_setopt(handle, c.CURLOPT_WRITEDATA, writer) != c.CURLE_OK)
         return error.CouldNotSetWriteCallback;
 
+    if (c.curl_easy_setopt(handle, c.CURLOPT_ACCEPT_ENCODING, "zstd, br, gzip") != c.CURLE_OK)
+        return error.CouldNotSetEncoding;
+
     // perform
     const result = c.curl_easy_perform(handle);
     if (result != c.CURLE_OK) {

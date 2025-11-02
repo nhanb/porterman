@@ -35,7 +35,7 @@ pub fn sendRequest(
     errdefer db.rollback();
 
     try db.exec(
-        "update state set response_status=?, response_body=?",
+        "update state set response_status=?, response_body=?, response_body_changed=1",
         .{ @intFromEnum(result.status), response.written() },
     );
     try db.exec("delete from task where id=?", .{task_id});

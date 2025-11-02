@@ -9,13 +9,15 @@ url: []const u8,
 sending: bool,
 response_status: ?std.http.Status,
 response_body: ?[]const u8,
+response_body_changed: bool,
 app_status: []const u8,
 has_blocking_task: bool,
 
 pub fn fromDb(arena: std.mem.Allocator, db: Database) !State {
     const state_row = (try db.selectRow(
         \\select
-        \\  method, url, sending, response_status, response_body, app_status
+        \\  method, url, sending, response_status, response_body,
+        \\  response_body_changed, app_status
         \\from state limit 1;
     , .{})).?;
     defer state_row.deinit();
@@ -43,7 +45,8 @@ pub fn fromDb(arena: std.mem.Allocator, db: Database) !State {
         else
             null,
 
-        .app_status = try arena.dupe(u8, state_row.text(5)),
+        .response_body_changed = state_row.int(5) == 1,
+        .app_status = try arena.dupe(u8, state_row.text(6)),
         .has_blocking_task = num_blocking_tasks > 0,
     };
 }

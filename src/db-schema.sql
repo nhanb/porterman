@@ -5,10 +5,11 @@ create table state (
     method text
         check(method in ('GET', 'HEAD', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'TRACE', 'PATCH'))
         default 'GET',
-    url text default 'https://hi.imnhan.com/',
+    url text default 'https://vnexpress.net',
     sending integer check (sending in (0, 1)) default 0,
     response_status integer check (0 <= response_status < 1024) default null,
     response_body text default null,
+    response_body_changed integer default 0,
     app_status text default 'Ready'
 );
 insert into state(id) values(0);

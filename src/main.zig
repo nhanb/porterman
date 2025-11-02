@@ -279,12 +279,16 @@ pub fn frame() !dvui.App.Result {
 
             var resp_text = dvui.textLayout(
                 @src(),
-                .{ .break_lines = true, .cache_layout = true },
+                .{ .break_lines = true, .cache_layout = !state.response_body_changed },
                 .{ .expand = .both, .font = win.theme.font_title_4 },
             );
             resp_text.addText(state.response_body.?, .{});
             resp_text.deinit();
         }
+    }
+
+    if (state.response_body_changed) {
+        try database.execNoArgs("update state set response_body_changed=0;");
     }
 
     return .ok;
