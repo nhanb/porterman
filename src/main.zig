@@ -170,7 +170,7 @@ pub fn frame() !dvui.App.Result {
         );
         defer bottom_hbox.deinit();
 
-        dvui.label(@src(), "{d} fps", .{dvui.FPS()}, .{});
+        dvui.label(@src(), "{d} fps", .{@round(dvui.FPS())}, .{});
 
         dvui.labelNoFmt(
             @src(),
