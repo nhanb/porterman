@@ -84,10 +84,6 @@ pub fn AppDeinit() void {
 
 // Run each frame to do normal UI
 pub fn AppFrame() !dvui.App.Result {
-    return frame();
-}
-
-pub fn frame() !dvui.App.Result {
     defer _ = frame_arena_impl.reset(.retain_capacity);
     const state = try State.fromDb(frame_arena, database);
     const win = dvui.currentWindow();
