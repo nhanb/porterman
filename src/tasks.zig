@@ -38,8 +38,18 @@ pub fn sendRequest(
     errdefer db.rollback();
 
     try db.exec(
-        "update state set response_status=?, response_body=?, response_body_changed=1",
-        .{ @intFromEnum(resp.status), resp.body },
+        \\update state
+        \\set
+        \\  response_status=?,
+        \\  response_ms=?,
+        \\  response_body=?,
+        \\  response_body_changed=1
+    ,
+        .{
+            @intFromEnum(resp.status),
+            resp.duration_ms,
+            resp.body,
+        },
     );
 
     try db.execNoArgs("delete from response_headers");
@@ -51,7 +61,21 @@ pub fn sendRequest(
     }
 
     try db.exec("delete from task where id=?", .{task_id});
-    try db.execNoArgs("update state set app_status='Finished request'");
+    try db.exec(
+        "update state set app_status=?",
+        .{
+            try std.fmt.allocPrint(
+                arena,
+                "Finished request (took {s})",
+                .{
+                    if (resp.duration_ms >= 1_000)
+                        try std.fmt.allocPrint(arena, "{d}s", .{@divTrunc(resp.duration_ms, 1000)})
+                    else
+                        try std.fmt.allocPrint(arena, "{d} ms", .{resp.duration_ms}),
+                },
+            ),
+        },
+    );
     try db.commit();
 
     dvui.refresh(win, @src(), null);

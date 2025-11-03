@@ -7,9 +7,10 @@ create table state (
         default 'GET',
     url text default 'https://vnexpress.net',
     sending integer check (sending in (0, 1)) default 0,
+    response_ms integer check (response_ms >=0) default 0,
     response_status integer check (0 <= response_status < 1024) default null,
     response_body text default null,
-    response_body_changed integer default 0,
+    response_body_changed integer check (response_body_changed in (0, 1)) default 0,
     app_status text default 'Ready',
 
     resp_active_tab text

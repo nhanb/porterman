@@ -7,6 +7,7 @@ const State = @This();
 method: enums.HttpMethod,
 url: []const u8,
 sending: bool,
+response_ms: i64,
 response_status: ?std.http.Status,
 response_body: ?[]const u8,
 response_body_changed: bool,
@@ -33,7 +34,12 @@ pub fn fromDb(arena: std.mem.Allocator, db: Database) !State {
     // Simple key-val states
     const state_row = (try db.selectRow(
         \\select
-        \\  method, url, sending, response_status, response_body,
+        \\  method,
+        \\  url,
+        \\  sending,
+        \\  response_ms,
+        \\  response_status,
+        \\  response_body,
         \\  response_body_changed, app_status, resp_active_tab
         \\from state limit 1;
     , .{})).?;
@@ -65,21 +71,22 @@ pub fn fromDb(arena: std.mem.Allocator, db: Database) !State {
         ).?,
         .url = try arena.dupe(u8, state_row.text(1)),
         .sending = state_row.int(2) == 1,
+        .response_ms = state_row.int(3),
 
-        .response_status = if (state_row.nullableInt(3)) |status|
+        .response_status = if (state_row.nullableInt(4)) |status|
             @enumFromInt(status)
         else
             null,
 
-        .response_body = if (state_row.nullableText(4)) |text|
+        .response_body = if (state_row.nullableText(5)) |text|
             try arena.dupe(u8, text)
         else
             null,
 
-        .response_body_changed = state_row.int(5) == 1,
+        .response_body_changed = state_row.int(6) == 1,
         .response_headers = resp_headers.items,
-        .app_status = try arena.dupe(u8, state_row.text(6)),
+        .app_status = try arena.dupe(u8, state_row.text(7)),
         .has_blocking_task = num_blocking_tasks > 0,
-        .resp_active_tab = std.meta.stringToEnum(ResponseTab, state_row.text(7)).?,
+        .resp_active_tab = std.meta.stringToEnum(ResponseTab, state_row.text(8)).?,
     };
 }

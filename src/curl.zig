@@ -11,6 +11,7 @@ pub const Response = struct {
     status: std.http.Status,
     headers: []const [2][]const u8, // non-unique key-value pairs
     body: []const u8,
+    duration_ms: i64,
 };
 
 pub fn init() !void {
@@ -43,12 +44,17 @@ pub fn get(arena: mem.Allocator, url: []const u8) !Response {
     if (c.curl_easy_setopt(handle, c.CURLOPT_ACCEPT_ENCODING, "zstd, br, gzip") != c.CURLE_OK)
         return error.CouldNotSetEncoding;
 
+    var timer = try std.time.Timer.start();
+
     // perform request
     const result = c.curl_easy_perform(handle);
     if (result != c.CURLE_OK) {
-        log.err("curl_easy_perform failed: {d}", .{result});
+        const err_msg = c.curl_easy_strerror(result);
+        log.err("curl_easy_perform failed: [{d}] {s}", .{ result, err_msg });
         return error.FailedToPerformRequest;
     }
+
+    const duration_ms = timer.read() / 1_000_000;
 
     var status: c_uint = 0;
     if (c.curl_easy_getinfo(handle, c.CURLINFO_RESPONSE_CODE, &status) != c.CURLE_OK)
@@ -73,6 +79,7 @@ pub fn get(arena: mem.Allocator, url: []const u8) !Response {
         .status = @enumFromInt(status),
         .headers = headers.items,
         .body = resp_body.written(),
+        .duration_ms = @intCast(duration_ms),
     };
 }
 
