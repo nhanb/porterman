@@ -273,12 +273,30 @@ pub fn AppFrame() !dvui.App.Result {
         var tbox = dvui.box(@src(), .{}, .{ .expand = .both });
         defer tbox.deinit();
         {
-            var tabs = dvui.tabs(@src(), .{ .dir = .horizontal }, .{ .expand = .horizontal });
+            var tabs = dvui.tabs(
+                @src(),
+                .{ .dir = .horizontal },
+                .{ .expand = .horizontal },
+            );
             defer tabs.deinit();
             for (0..State.ResponseTab.len) |tab_num| {
                 const this_tab: State.ResponseTab = @enumFromInt(tab_num);
+                const selected = state.resp_active_tab == this_tab;
 
-                if (tabs.addTabLabel(state.resp_active_tab == this_tab, State.resp_tab_label(this_tab))) {
+                var tab = tabs.addTab(selected, .{
+                    .font = win.theme.font_body,
+                    .border = .{ .x = 1, .y = 1, .w = 1 },
+                });
+                defer tab.deinit();
+
+                var label_opts = tab.data().options.strip();
+                if (dvui.captured(tab.data().id)) {
+                    label_opts.color_text = label_opts.color(.text_press);
+                }
+
+                dvui.labelNoFmt(@src(), State.resp_tab_label(this_tab), .{}, label_opts);
+
+                if (tab.clicked()) {
                     try database.exec(
                         "update state set resp_active_tab=?",
                         .{@tagName(this_tab)},
