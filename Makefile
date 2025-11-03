@@ -13,6 +13,9 @@ run:
 build:
 	zig build $(PARAMS)
 
+release:
+	zig build $(PARAMS) -Doptimize=ReleaseSafe
+
 test:
 	zig build $(PARAMS) test --watch
 
