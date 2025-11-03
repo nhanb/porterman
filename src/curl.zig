@@ -7,6 +7,7 @@ const c = @cImport({
 
 pub const Response = struct {
     status: std.http.Status,
+    headers: []const [2][]const u8, // non-unique key-value pairs
 };
 
 pub fn init() !void {
@@ -18,7 +19,7 @@ pub fn deinit() void {
     c.curl_global_cleanup();
 }
 
-pub fn get(gpa: mem.Allocator, url: []const u8, writer: *Io.Writer) !Response {
+pub fn get(arena: mem.Allocator, url: []const u8, writer: *Io.Writer) !Response {
     std.log.info("GET {s}", .{url});
 
     // curl easy handle init, or fail
@@ -39,7 +40,7 @@ pub fn get(gpa: mem.Allocator, url: []const u8, writer: *Io.Writer) !Response {
     if (c.curl_easy_setopt(handle, c.CURLOPT_ACCEPT_ENCODING, "zstd, br, gzip") != c.CURLE_OK)
         return error.CouldNotSetEncoding;
 
-    // perform
+    // perform request
     const result = c.curl_easy_perform(handle);
     if (result != c.CURLE_OK) {
         std.log.err("curl_easy_perform failed: {d}", .{result});
@@ -55,12 +56,30 @@ pub fn get(gpa: mem.Allocator, url: []const u8, writer: *Io.Writer) !Response {
     if (c.curl_easy_getinfo(handle, c.CURLINFO_CONTENT_TYPE, &c_content_type) != c.CURLE_OK)
         return error.FailedToGetContentType;
 
-    _ = gpa;
+    // read headers
+    var headers = try std.ArrayList([2][]u8).initCapacity(arena, 32);
+
+    var prev: ?*c.curl_header = null;
+    while (true) {
+        if (c.curl_easy_nextheader(handle, c.CURLH_HEADER, -1, prev)) |h| {
+            const name = try arena.dupe(u8, mem.span(h.*.name));
+            const value = try arena.dupe(u8, mem.span(h.*.value));
+            try headers.append(arena, .{ name, value });
+            prev = h;
+        } else {
+            break;
+        }
+    }
+
+    for (headers.items) |h| {
+        std.log.info("Header: {s}: {s}", .{ h[0], h[1] });
+    }
+
     std.log.info("Resp content-type: {s}", .{c_content_type});
 
     std.log.info("Got response of {d} bytes", .{writer.buffered().len});
 
-    return Response{ .status = .ok };
+    return Response{ .status = .ok, .headers = headers.items };
 }
 
 fn writeToArrayListCallback(data: *anyopaque, size: c_uint, nmemb: c_uint, user_data: *anyopaque) callconv(.c) c_uint {
