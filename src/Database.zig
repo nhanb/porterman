@@ -75,3 +75,7 @@ pub fn selectText(self: Database, arena: Allocator, sql: []const u8) !i64 {
     defer row.deinit();
     return arena.dupe(u8, row.int(0));
 }
+
+pub fn rows(self: Database, sql: []const u8, args: anytype) !zqlite.Rows {
+    return self.conn.rows(sql, args);
+}

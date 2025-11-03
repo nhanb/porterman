@@ -10,6 +10,7 @@ sending: bool,
 response_status: ?std.http.Status,
 response_body: ?[]const u8,
 response_body_changed: bool,
+response_headers: []const [2][]const u8,
 app_status: []const u8,
 has_blocking_task: bool,
 
@@ -26,6 +27,18 @@ pub fn fromDb(arena: std.mem.Allocator, db: Database) !State {
         "select count(*) from task where blocking=1;",
         .{},
     );
+
+    var resp_headers = try std.ArrayList([2][]u8).initCapacity(arena, 32);
+    {
+        var rows = try db.rows("select name, value from response_headers order by id", .{});
+        defer rows.deinit();
+        while (rows.next()) |row| {
+            const name = try arena.dupe(u8, row.text(0));
+            const value = try arena.dupe(u8, row.text(1));
+            try resp_headers.append(arena, .{ name, value });
+        }
+        if (rows.err) |err| return err;
+    }
 
     return State{
         .method = std.meta.stringToEnum(
@@ -46,6 +59,7 @@ pub fn fromDb(arena: std.mem.Allocator, db: Database) !State {
             null,
 
         .response_body_changed = state_row.int(5) == 1,
+        .response_headers = resp_headers.items,
         .app_status = try arena.dupe(u8, state_row.text(6)),
         .has_blocking_task = num_blocking_tasks > 0,
     };
