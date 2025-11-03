@@ -10,7 +10,11 @@ create table state (
     response_status integer check (0 <= response_status < 1024) default null,
     response_body text default null,
     response_body_changed integer default 0,
-    app_status text default 'Ready'
+    app_status text default 'Ready',
+
+    resp_active_tab text
+        check(resp_active_tab in ('body', 'headers'))
+        default 'body'
 );
 insert into state(id) values(0);
 
@@ -19,7 +23,6 @@ create table response_headers (
     name text not null,
     value text
 );
-
 
 create table task (
     id integer primary key,

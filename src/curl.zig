@@ -5,6 +5,8 @@ const c = @cImport({
     @cInclude("curl/curl.h");
 });
 
+const log = std.log.scoped(.curl);
+
 pub const Response = struct {
     status: std.http.Status,
     headers: []const [2][]const u8, // non-unique key-value pairs
@@ -21,7 +23,7 @@ pub fn deinit() void {
 }
 
 pub fn get(arena: mem.Allocator, url: []const u8) !Response {
-    std.log.info("GET {s}", .{url});
+    log.debug("GET {s}", .{url});
 
     var resp_body: std.Io.Writer.Allocating = .init(arena);
 
@@ -46,14 +48,14 @@ pub fn get(arena: mem.Allocator, url: []const u8) !Response {
     // perform request
     const result = c.curl_easy_perform(handle);
     if (result != c.CURLE_OK) {
-        std.log.err("curl_easy_perform failed: {d}", .{result});
+        log.err("curl_easy_perform failed: {d}", .{result});
         return error.FailedToPerformRequest;
     }
 
     var status: c_uint = 0;
     if (c.curl_easy_getinfo(handle, c.CURLINFO_RESPONSE_CODE, &status) != c.CURLE_OK)
         return error.FailedToGetResponseCode;
-    std.log.info("Resp status: {d}", .{status});
+    log.debug("Resp status: {d}", .{status});
 
     // read headers
     var headers = try std.ArrayList([2][]u8).initCapacity(arena, 32);

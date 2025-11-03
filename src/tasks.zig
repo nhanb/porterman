@@ -5,6 +5,8 @@ const enums = @import("enums.zig");
 const Database = @import("Database.zig");
 const curl = @import("curl.zig");
 
+const log = std.log.scoped(.tasks);
+
 pub fn sendRequest(
     gpa: std.mem.Allocator,
     win: *dvui.Window,
@@ -46,7 +48,7 @@ pub fn sendRequest(
             "insert into response_headers (name, value) values (?, ?)",
             .{ h[0], h[1] },
         );
-        std.log.info("Header: {s}: {s}", .{ h[0], h[1] });
+        log.debug("Header: {s}: {s}", .{ h[0], h[1] });
     }
 
     try db.exec("delete from task where id=?", .{task_id});

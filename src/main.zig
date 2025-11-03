@@ -9,6 +9,8 @@ const State = @import("./State.zig");
 const enums = @import("./enums.zig");
 const curl = @import("./curl.zig");
 
+const log = std.log.scoped(.main);
+
 pub const http_method_names = blk: {
     const enum_fields = @typeInfo(enums.HttpMethod).@"enum".fields;
     var names: [enum_fields.len][]const u8 = undefined;
@@ -77,7 +79,7 @@ pub fn AppInit(win: *dvui.Window) !void {
 
 // Run as app is shutting down before dvui.Window.deinit()
 pub fn AppDeinit() void {
-    std.log.info("AppDeinit()", .{});
+    log.info("AppDeinit()", .{});
     database.deinit();
     curl.deinit();
 }
@@ -268,18 +270,56 @@ pub fn AppFrame() !dvui.App.Result {
             .{},
         );
 
-        dvui.label(@src(), "Response body:", .{}, .{});
+        var tbox = dvui.box(@src(), .{}, .{ .expand = .both });
+        defer tbox.deinit();
         {
-            var scroll = dvui.scrollArea(@src(), .{}, .{ .expand = .both });
-            defer scroll.deinit();
+            var tabs = dvui.tabs(@src(), .{ .dir = .horizontal }, .{ .expand = .horizontal });
+            defer tabs.deinit();
+            for (0..State.ResponseTab.len) |tab_num| {
+                const this_tab: State.ResponseTab = @enumFromInt(tab_num);
 
-            var resp_text = dvui.textLayout(
-                @src(),
-                .{ .break_lines = true, .cache_layout = !state.response_body_changed },
-                .{ .expand = .both, .font = win.theme.font_title_4 },
-            );
-            resp_text.addText(state.response_body.?, .{});
-            resp_text.deinit();
+                if (tabs.addTabLabel(state.resp_active_tab == this_tab, State.resp_tab_label(this_tab))) {
+                    try database.exec(
+                        "update state set resp_active_tab=?",
+                        .{@tagName(this_tab)},
+                    );
+                }
+            }
+        }
+
+        switch (state.resp_active_tab) {
+            .body => {
+                var scroll = dvui.scrollArea(@src(), .{}, .{ .expand = .both });
+                defer scroll.deinit();
+
+                var body_text = dvui.textLayout(
+                    @src(),
+                    .{ .break_lines = true, .cache_layout = !state.response_body_changed },
+                    .{ .expand = .both, .font = win.theme.font_title_4, .background = false },
+                );
+                body_text.addText(state.response_body.?, .{});
+                body_text.deinit();
+            },
+
+            .headers => {
+                var scroll = dvui.scrollArea(@src(), .{}, .{ .expand = .both });
+                defer scroll.deinit();
+
+                var headers_text = dvui.textLayout(
+                    @src(),
+                    .{ .break_lines = true, .cache_layout = !state.response_body_changed },
+                    .{ .expand = .both, .font = win.theme.font_title_4, .background = false },
+                );
+                for (state.response_headers) |h| {
+                    const name = h[0];
+                    const value = h[1];
+                    headers_text.addText(name, .{ .font = win.theme.font_title_3 });
+                    headers_text.addText(": ", .{ .font = win.theme.font_title_3 });
+                    headers_text.addText(value, .{});
+                    headers_text.addText("\n", .{});
+                }
+                headers_text.deinit();
+            },
         }
     }
 

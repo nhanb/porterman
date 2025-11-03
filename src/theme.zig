@@ -51,8 +51,15 @@ pub const dark = blk: {
 
 fn applyCommonOpts(theme: *dvui.Theme) void {
     theme.font_body.id = .fromName("SourceSans");
+
+    // monospace:
     theme.font_title_4.id = .fromName("SourceCodePro");
     theme.font_title_4.size = theme.font_body.size - 2;
+
+    // monospace bold:
+    theme.font_title_3.id = .fromName("SourceCodeProBold");
+    theme.font_title_3.size = theme.font_title_4.size;
+
     theme.* = theme.fontSizeAdd(5);
 }
 
