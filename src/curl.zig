@@ -23,8 +23,6 @@ pub fn deinit() void {
 }
 
 pub fn get(arena: mem.Allocator, url: []const u8) !Response {
-    log.debug("GET {s}", .{url});
-
     var resp_body: std.Io.Writer.Allocating = .init(arena);
 
     // curl easy handle init, or fail
@@ -55,7 +53,6 @@ pub fn get(arena: mem.Allocator, url: []const u8) !Response {
     var status: c_uint = 0;
     if (c.curl_easy_getinfo(handle, c.CURLINFO_RESPONSE_CODE, &status) != c.CURLE_OK)
         return error.FailedToGetResponseCode;
-    log.debug("Resp status: {d}", .{status});
 
     // read headers
     var headers = try std.ArrayList([2][]u8).initCapacity(arena, 32);
@@ -73,7 +70,7 @@ pub fn get(arena: mem.Allocator, url: []const u8) !Response {
     }
 
     return Response{
-        .status = .ok,
+        .status = @enumFromInt(status),
         .headers = headers.items,
         .body = resp_body.written(),
     };

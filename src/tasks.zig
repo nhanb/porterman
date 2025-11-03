@@ -48,7 +48,6 @@ pub fn sendRequest(
             "insert into response_headers (name, value) values (?, ?)",
             .{ h[0], h[1] },
         );
-        log.debug("Header: {s}: {s}", .{ h[0], h[1] });
     }
 
     try db.exec("delete from task where id=?", .{task_id});

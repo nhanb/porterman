@@ -286,6 +286,7 @@ pub fn AppFrame() !dvui.App.Result {
                 var tab = tabs.addTab(selected, .{
                     .font = win.theme.font_body,
                     .border = .{ .x = 1, .y = 1, .w = 1 },
+                    .color_fill_hover = if (selected) win.theme.window.fill else null,
                 });
                 defer tab.deinit();
 
