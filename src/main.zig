@@ -165,7 +165,7 @@ pub fn AppFrame() !dvui.App.Result {
             .{
                 .gravity_y = 1,
                 .expand = .horizontal,
-                //.border = .{ .y = 1 },
+                .border = .{ .y = 1 },
                 .style = .window,
                 .background = true,
             },
@@ -346,6 +346,7 @@ pub fn AppFrame() !dvui.App.Result {
         try database.execNoArgs("update state set response_body_changed=0;");
     }
 
+    //dvui.refresh(win, @src(), null);
     return .ok;
 }
 
