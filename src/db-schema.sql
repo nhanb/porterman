@@ -10,10 +10,15 @@ create table state (
     response_status integer check (0 <= response_status < 1024) default null,
     response_body text default null,
     response_body_changed integer default 0,
-    response_headers jsonb default '[]',
     app_status text default 'Ready'
 );
 insert into state(id) values(0);
+
+create table response_headers (
+    id integer primary key,
+    name text not null,
+    value text
+);
 
 
 create table task (

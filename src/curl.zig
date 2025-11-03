@@ -8,6 +8,7 @@ const c = @cImport({
 pub const Response = struct {
     status: std.http.Status,
     headers: []const [2][]const u8, // non-unique key-value pairs
+    body: []const u8,
 };
 
 pub fn init() !void {
@@ -19,8 +20,10 @@ pub fn deinit() void {
     c.curl_global_cleanup();
 }
 
-pub fn get(arena: mem.Allocator, url: []const u8, writer: *Io.Writer) !Response {
+pub fn get(arena: mem.Allocator, url: []const u8) !Response {
     std.log.info("GET {s}", .{url});
+
+    var resp_body: std.Io.Writer.Allocating = .init(arena);
 
     // curl easy handle init, or fail
     const handle = c.curl_easy_init() orelse return error.CURLHandleInitFailed;
@@ -34,7 +37,7 @@ pub fn get(arena: mem.Allocator, url: []const u8, writer: *Io.Writer) !Response 
     if (c.curl_easy_setopt(handle, c.CURLOPT_WRITEFUNCTION, writeToArrayListCallback) != c.CURLE_OK)
         return error.CouldNotSetWriteCallback;
 
-    if (c.curl_easy_setopt(handle, c.CURLOPT_WRITEDATA, writer) != c.CURLE_OK)
+    if (c.curl_easy_setopt(handle, c.CURLOPT_WRITEDATA, &resp_body.writer) != c.CURLE_OK)
         return error.CouldNotSetWriteCallback;
 
     if (c.curl_easy_setopt(handle, c.CURLOPT_ACCEPT_ENCODING, "zstd, br, gzip") != c.CURLE_OK)
@@ -52,10 +55,6 @@ pub fn get(arena: mem.Allocator, url: []const u8, writer: *Io.Writer) !Response 
         return error.FailedToGetResponseCode;
     std.log.info("Resp status: {d}", .{status});
 
-    var c_content_type: [*:0]const u8 = undefined;
-    if (c.curl_easy_getinfo(handle, c.CURLINFO_CONTENT_TYPE, &c_content_type) != c.CURLE_OK)
-        return error.FailedToGetContentType;
-
     // read headers
     var headers = try std.ArrayList([2][]u8).initCapacity(arena, 32);
 
@@ -71,15 +70,11 @@ pub fn get(arena: mem.Allocator, url: []const u8, writer: *Io.Writer) !Response 
         }
     }
 
-    for (headers.items) |h| {
-        std.log.info("Header: {s}: {s}", .{ h[0], h[1] });
-    }
-
-    std.log.info("Resp content-type: {s}", .{c_content_type});
-
-    std.log.info("Got response of {d} bytes", .{writer.buffered().len});
-
-    return Response{ .status = .ok, .headers = headers.items };
+    return Response{
+        .status = .ok,
+        .headers = headers.items,
+        .body = resp_body.written(),
+    };
 }
 
 fn writeToArrayListCallback(data: *anyopaque, size: c_uint, nmemb: c_uint, user_data: *anyopaque) callconv(.c) c_uint {

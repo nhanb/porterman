@@ -10,6 +10,10 @@ pub fn sendRequest(
     win: *dvui.Window,
     task_id: i64,
 ) !void {
+    var arena_state = std.heap.ArenaAllocator.init(gpa);
+    const arena = arena_state.allocator();
+    defer arena_state.deinit();
+
     const db = try Database.init();
 
     const row = (try db.selectRow(
@@ -25,19 +29,26 @@ pub fn sendRequest(
     const http_method = std.meta.stringToEnum(std.http.Method, row.text(0)).?;
     const url = row.text(1);
 
-    var response: std.Io.Writer.Allocating = .init(gpa);
-    defer response.deinit();
-
     _ = http_method;
-    const result = try curl.get(gpa, url, &response.writer);
+    const resp = try curl.get(arena, url);
 
     try db.begin();
     errdefer db.rollback();
 
     try db.exec(
         "update state set response_status=?, response_body=?, response_body_changed=1",
-        .{ @intFromEnum(result.status), response.written() },
+        .{ @intFromEnum(resp.status), resp.body },
     );
+
+    try db.execNoArgs("delete from response_headers");
+    for (resp.headers) |h| {
+        try db.exec(
+            "insert into response_headers (name, value) values (?, ?)",
+            .{ h[0], h[1] },
+        );
+        std.log.info("Header: {s}: {s}", .{ h[0], h[1] });
+    }
+
     try db.exec("delete from task where id=?", .{task_id});
     try db.execNoArgs("update state set app_status='Finished request'");
     try db.commit();
