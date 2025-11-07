@@ -10,11 +10,11 @@ pub fn init() !Database {
     const flags = zqlite.OpenFlags.Create | zqlite.OpenFlags.EXResCode | zqlite.OpenFlags.Uri;
     // A shared-cache in-memory db can be access from multiple threads
     // as long as each thread uses its own connection
-    const conn = try zqlite.open("file::memory:?cache=shared", flags);
+    const conn = try zqlite.open("file:/memdbname?vfs=memdb", flags);
     const db = Database{ .conn = conn };
     try db.execNoArgs(
         \\PRAGMA foreign_keys = 1;
-        \\PRAGMA busy_timeout = 3000;
+        \\PRAGMA busy_timeout = 5000;
     );
     return db;
 }
@@ -24,7 +24,7 @@ pub fn deinit(self: Database) void {
 }
 
 pub fn begin(self: Database) !void {
-    try self.conn.execNoArgs("begin");
+    try self.conn.execNoArgs("begin exclusive");
 }
 
 pub fn commit(self: Database) !void {

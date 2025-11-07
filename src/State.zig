@@ -31,6 +31,9 @@ pub fn resp_tab_label(tab: ResponseTab) []const u8 {
 }
 
 pub fn fromDb(arena: std.mem.Allocator, db: Database) !State {
+    try db.begin();
+    errdefer db.rollback();
+
     // Simple key-val states
     const state_row = (try db.selectRow(
         \\select
@@ -64,7 +67,7 @@ pub fn fromDb(arena: std.mem.Allocator, db: Database) !State {
         if (rows.err) |err| return err;
     }
 
-    return State{
+    const state = State{
         .method = std.meta.stringToEnum(
             enums.HttpMethod,
             try arena.dupe(u8, state_row.text(0)),
@@ -89,4 +92,8 @@ pub fn fromDb(arena: std.mem.Allocator, db: Database) !State {
         .has_blocking_task = num_blocking_tasks > 0,
         .resp_active_tab = std.meta.stringToEnum(ResponseTab, state_row.text(8)).?,
     };
+
+    try db.commit();
+
+    return state;
 }

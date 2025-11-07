@@ -18,20 +18,29 @@ pub fn sendRequest(
 
     const db = try Database.init();
 
-    const row = (try db.selectRow(
-        \\select
-        \\  data ->> '$.method',
-        \\  data ->> '$.url'
-        \\from task where id=?
-    ,
-        .{task_id},
-    )).?;
-    defer row.deinit();
+    var http_method: std.http.Method = undefined;
+    var url: []const u8 = undefined;
 
-    const http_method = std.meta.stringToEnum(std.http.Method, row.text(0)).?;
-    const url = row.text(1);
+    {
+        try db.begin();
+        errdefer db.rollback();
 
-    _ = http_method;
+        const row = (try db.selectRow(
+            \\select
+            \\  data ->> '$.method',
+            \\  data ->> '$.url'
+            \\from task where id=?
+        ,
+            .{task_id},
+        )).?;
+        defer row.deinit();
+
+        http_method = std.meta.stringToEnum(std.http.Method, row.text(0)).?;
+        url = try arena.dupe(u8, row.text(1));
+
+        try db.commit();
+    }
+
     const resp = try curl.get(arena, url);
 
     try db.begin();
