@@ -4,6 +4,7 @@ const dvui = @import("dvui");
 const enums = @import("enums.zig");
 const Database = @import("Database.zig");
 const curl = @import("curl.zig");
+const core = @import("core.zig");
 
 const log = std.log.scoped(.tasks);
 
@@ -42,50 +43,10 @@ pub fn sendRequest(
     }
 
     const resp = try curl.get(arena, url);
-
-    try db.begin();
-    errdefer db.rollback();
-
-    try db.exec(
-        \\update state
-        \\set
-        \\  response_status=?,
-        \\  response_ms=?,
-        \\  response_body=?,
-        \\  response_body_changed=1
-    ,
-        .{
-            @intFromEnum(resp.status),
-            resp.duration_ms,
-            resp.body,
-        },
-    );
-
-    try db.execNoArgs("delete from response_headers");
-    for (resp.headers) |h| {
-        try db.exec(
-            "insert into response_headers (name, value) values (?, ?)",
-            .{ h[0], h[1] },
-        );
-    }
-
-    try db.exec("delete from task where id=?", .{task_id});
-    try db.exec(
-        "update state set app_status=?",
-        .{
-            try std.fmt.allocPrint(
-                arena,
-                "Finished request (took {s})",
-                .{
-                    if (resp.duration_ms >= 1_000)
-                        try std.fmt.allocPrint(arena, "{d}s", .{@divTrunc(resp.duration_ms, 1000)})
-                    else
-                        try std.fmt.allocPrint(arena, "{d} ms", .{resp.duration_ms}),
-                },
-            ),
-        },
-    );
-    try db.commit();
+    try core.exec(gpa, arena, win, db, .{ .finish_request = .{
+        .task_id = task_id,
+        .curl_response = resp,
+    } });
 
     dvui.refresh(win, @src(), null);
 }

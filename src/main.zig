@@ -6,6 +6,7 @@ const theme = @import("./theme.zig");
 const Database = @import("./Database.zig");
 const tasks = @import("./tasks.zig");
 const State = @import("./State.zig");
+const core = @import("./core.zig");
 const enums = @import("./enums.zig");
 const curl = @import("./curl.zig");
 
@@ -52,7 +53,7 @@ const gpa = gpa_impl.allocator();
 var frame_arena_impl = std.heap.ArenaAllocator.init(gpa);
 const frame_arena = frame_arena_impl.allocator();
 
-var database: Database = undefined;
+var db: Database = undefined;
 
 // Runs before the first frame, after backend and dvui.Window.init()
 // - runs between win.begin()/win.end()
@@ -73,21 +74,21 @@ pub fn AppInit(win: *dvui.Window) !void {
     });
 
     // Init in-memory db that will be the single source of truth for app state
-    database = try Database.init();
-    try database.execNoArgs(@embedFile("./db-schema.sql"));
+    db = try Database.init();
+    try db.execNoArgs(@embedFile("./db-schema.sql"));
 }
 
 // Run as app is shutting down before dvui.Window.deinit()
 pub fn AppDeinit() void {
     log.info("AppDeinit()", .{});
-    database.deinit();
+    db.deinit();
     curl.deinit();
 }
 
 // Run each frame to do normal UI
 pub fn AppFrame() !dvui.App.Result {
     defer _ = frame_arena_impl.reset(.retain_capacity);
-    const state = try State.fromDb(frame_arena, database);
+    const state = try State.fromDb(frame_arena, db);
     const win = dvui.currentWindow();
 
     // React to changes in dark mode preference in real time.
@@ -108,36 +109,17 @@ pub fn AppFrame() !dvui.App.Result {
             .key => |key| {
                 if (key.action == .down) {
                     if (key.matchBind("ptm_send_request")) {
-                        // TODO: refactor repeated event handling code
-
-                        try database.begin();
-                        errdefer database.rollback();
-
-                        try database.execNoArgs(
-                            "update state set app_status='Sending request...';",
-                        );
-
-                        const task_id = try database.selectInt(
-                            \\insert into task (blocking, name, data) values (
-                            \\  1,
-                            \\  ?,
-                            \\  jsonb_object(
-                            \\    'method', ?,
-                            \\    'url', ?
-                            \\  )
-                            \\) returning id;
-                        , .{
-                            @tagName(enums.Task.send_request),
-                            @tagName(state.method),
-                            state.url,
-                        });
-
-                        try database.commit();
-
-                        _ = try std.Thread.spawn(
-                            .{},
-                            tasks.sendRequest,
-                            .{ gpa, win, task_id },
+                        try core.exec(
+                            gpa,
+                            frame_arena,
+                            win,
+                            db,
+                            .{
+                                .start_request = .{
+                                    .url = state.url,
+                                    .method = state.method,
+                                },
+                            },
                         );
 
                         // Don't leak this event to control widgets
@@ -199,7 +181,7 @@ pub fn AppFrame() !dvui.App.Result {
             .{ .min_size_content = .{ .w = 100 }, .gravity_y = 0.5 },
         )) {
             const new_method: enums.HttpMethod = @enumFromInt(method_choice);
-            try database.exec("update state set method=?;", .{@tagName(new_method)});
+            try core.exec(gpa, frame_arena, win, db, .{ .change_method = new_method });
         }
 
         // URL input
@@ -209,14 +191,12 @@ pub fn AppFrame() !dvui.App.Result {
             .{ .expand = .horizontal },
         );
         if (dvui.firstFrame(url_entry.data().id)) {
-            const row = (try database.selectRow("select url from state limit 1", .{})).?;
-            defer row.deinit();
-
-            url_entry.textSet(row.text(0), false);
+            url_entry.textSet(state.url, false);
             dvui.focusWidget(url_entry.data().id, null, null);
         }
         if (url_entry.text_changed) {
-            try database.exec("update state set url=?;", .{url_entry.getText()});
+            const url = url_entry.getText();
+            try core.exec(gpa, frame_arena, win, db, .{ .change_url = url });
         }
         url_entry.deinit();
 
@@ -227,34 +207,17 @@ pub fn AppFrame() !dvui.App.Result {
             state.has_blocking_task or state.url.len == 0,
             .{ .gravity_y = 0.5 },
         )) {
-            try database.begin();
-            errdefer database.rollback();
-
-            try database.execNoArgs(
-                "update state set app_status='Sending request...';",
-            );
-
-            const task_id = try database.selectInt(
-                \\insert into task (blocking, name, data) values (
-                \\  1,
-                \\  ?,
-                \\  jsonb_object(
-                \\    'method', ?,
-                \\    'url', ?
-                \\  )
-                \\) returning id;
-            , .{
-                @tagName(enums.Task.send_request),
-                @tagName(state.method),
-                state.url,
-            });
-
-            try database.commit();
-
-            _ = try std.Thread.spawn(
-                .{},
-                tasks.sendRequest,
-                .{ gpa, win, task_id },
+            try core.exec(
+                gpa,
+                frame_arena,
+                win,
+                db,
+                .{
+                    .start_request = .{
+                        .url = state.url,
+                        .method = state.method,
+                    },
+                },
             );
         }
     }
@@ -298,9 +261,12 @@ pub fn AppFrame() !dvui.App.Result {
                 dvui.labelNoFmt(@src(), State.resp_tab_label(this_tab), .{}, label_opts);
 
                 if (tab.clicked()) {
-                    try database.exec(
-                        "update state set resp_active_tab=?",
-                        .{@tagName(this_tab)},
+                    try core.exec(
+                        gpa,
+                        frame_arena,
+                        win,
+                        db,
+                        .{ .change_response_tab = this_tab },
                     );
                 }
             }
@@ -343,7 +309,7 @@ pub fn AppFrame() !dvui.App.Result {
     }
 
     if (state.response_body_changed) {
-        try database.execNoArgs("update state set response_body_changed=0;");
+        try db.execNoArgs("update state set response_body_changed=0;");
     }
 
     //dvui.refresh(win, @src(), null);
