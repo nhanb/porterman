@@ -80,6 +80,8 @@ pub fn AppInit(win: *dvui.Window) !void {
 
 // Run as app is shutting down before dvui.Window.deinit()
 pub fn AppDeinit() void {
+    db.save("porterman.prtm") catch @panic("Unable to save");
+
     log.info("AppDeinit()", .{});
     db.deinit();
     curl.deinit();

@@ -1,6 +1,8 @@
 const std = @import("std");
+const fs = std.fs;
 const zqlite = @import("zqlite");
 const Allocator = std.mem.Allocator;
+const log = std.log.scoped(.Database);
 
 const Database = @This();
 
@@ -18,6 +20,28 @@ pub fn init() !Database {
         \\PRAGMA busy_timeout = 5000;
     );
     return db;
+}
+
+pub fn save(self: Database, path: [*:0]const u8) !void {
+    var tmp_path_buf: [4096]u8 = undefined;
+    const tmp_path = try std.fmt.bufPrintZ(&tmp_path_buf, "{s}.tmp", .{path});
+
+    const flags = zqlite.OpenFlags.Create | zqlite.OpenFlags.EXResCode;
+    const toConn = try zqlite.open(tmp_path, flags);
+    const fromConn = self.conn;
+    const pBackup = zqlite.c.sqlite3_backup_init(
+        @ptrCast(toConn.conn),
+        "main",
+        @ptrCast(fromConn.conn),
+        "main",
+    );
+    std.debug.assert(pBackup != null);
+    _ = zqlite.c.sqlite3_backup_step(pBackup, -1);
+    _ = zqlite.c.sqlite3_backup_finish(pBackup);
+    std.debug.assert(zqlite.c.sqlite3_errcode(@ptrCast(toConn.conn)) == zqlite.c.SQLITE_OK);
+    toConn.close();
+
+    try std.fs.cwd().renameZ(tmp_path, path);
 }
 
 pub fn deinit(self: Database) void {
