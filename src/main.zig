@@ -2,13 +2,13 @@ const std = @import("std");
 const builtin = @import("builtin");
 const dvui = @import("dvui");
 const zqlite = @import("zqlite");
-const theme = @import("./theme.zig");
-const Database = @import("./Database.zig");
-const tasks = @import("./tasks.zig");
-const State = @import("./State.zig");
-const core = @import("./core.zig");
-const enums = @import("./enums.zig");
-const curl = @import("./curl.zig");
+const theme = @import("theme.zig");
+const Database = @import("Database.zig");
+const tasks = @import("tasks.zig");
+const State = @import("State.zig");
+const core = @import("core.zig");
+const enums = @import("enums.zig");
+const curl = @import("curl.zig");
 
 const log = std.log.scoped(.main);
 

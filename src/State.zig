@@ -1,6 +1,6 @@
 const std = @import("std");
-const Database = @import("./Database.zig");
-const enums = @import("./enums.zig");
+const Database = @import("Database.zig");
+const enums = @import("enums.zig");
 
 const State = @This();
 
