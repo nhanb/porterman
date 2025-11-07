@@ -8,9 +8,10 @@ conn: zqlite.Conn,
 
 pub fn init() !Database {
     const flags = zqlite.OpenFlags.Create | zqlite.OpenFlags.EXResCode | zqlite.OpenFlags.Uri;
-    // A shared-cache in-memory db can be access from multiple threads
-    // as long as each thread uses its own connection
-    const conn = try zqlite.open("file:/memdbname?vfs=memdb", flags);
+    // The memdb VFS enables an in-memory DB that's shareable between threads,
+    // apparently recommended by drh himself although under-documented:
+    // https://sqlite.org/forum/forumpost/0359b21d172bd965
+    const conn = try zqlite.open("file:/portermandb?vfs=memdb", flags);
     const db = Database{ .conn = conn };
     try db.execNoArgs(
         \\PRAGMA foreign_keys = 1;
