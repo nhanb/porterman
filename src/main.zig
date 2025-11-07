@@ -309,7 +309,10 @@ pub fn AppFrame() !dvui.App.Result {
     }
 
     if (state.response_body_changed) {
+        try db.begin();
+        errdefer db.rollback();
         try db.execNoArgs("update state set response_body_changed=0;");
+        try db.commit();
     }
 
     //dvui.refresh(win, @src(), null);
