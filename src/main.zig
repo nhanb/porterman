@@ -1,4 +1,5 @@
 const std = @import("std");
+const mem = std.mem;
 const builtin = @import("builtin");
 const dvui = @import("dvui");
 const zqlite = @import("zqlite");
@@ -11,6 +12,8 @@ const enums = @import("enums.zig");
 const curl = @import("curl.zig");
 
 const log = std.log.scoped(.main);
+
+const extension = ".prtm";
 
 pub const http_method_names = blk: {
     const enum_fields = @typeInfo(enums.HttpMethod).@"enum".fields;
@@ -54,6 +57,8 @@ var frame_arena_impl = std.heap.ArenaAllocator.init(gpa);
 const frame_arena = frame_arena_impl.allocator();
 
 var db: Database = undefined;
+var argv: [][:0]u8 = undefined;
+var file_path: ?[:0]const u8 = null;
 
 // Runs before the first frame, after backend and dvui.Window.init()
 // - runs between win.begin()/win.end()
@@ -75,14 +80,55 @@ pub fn AppInit(win: *dvui.Window) !void {
 
     // Init in-memory db that will be the single source of truth for app state
     db = try Database.init();
-    try db.execNoArgs(@embedFile("./db-schema.sql"));
+
+    argv = try std.process.argsAlloc(gpa);
+    switch (argv.len) {
+        1 => {
+            try db.execNoArgs(@embedFile("./db-schema.sql"));
+            log.debug("Starting ephemeral db", .{});
+        },
+        2 => {
+            // Validate file extension
+            if (!mem.endsWith(u8, argv[1], extension)) {
+                std.debug.print("Usage: porterman [file{s}]", .{extension});
+                std.process.exit(1);
+            }
+
+            // If file doesn't exist then initialize in-memory db schema
+            // ourselves, then save to the new file.
+            std.fs.cwd().access(argv[1], .{ .lock = .exclusive }) catch |err| switch (err) {
+                error.FileNotFound => {
+                    try db.execNoArgs(@embedFile("./db-schema.sql"));
+                    file_path = argv[1];
+                    try db.save(file_path.?);
+                    log.debug("Created db file {s}", .{file_path.?});
+                },
+                else => return err,
+            };
+
+            // If file exists, load from it
+            if (file_path == null) {
+                file_path = argv[1];
+                try db.load(file_path.?);
+                log.debug("Loaded db from {s}", .{file_path.?});
+            }
+        },
+        else => {
+            std.debug.print("Usage: porterman [file{s}]", .{extension});
+            std.process.exit(1);
+        },
+    }
 }
 
 // Run as app is shutting down before dvui.Window.deinit()
 pub fn AppDeinit() void {
-    db.save("porterman.prtm") catch @panic("Unable to save");
+    if (file_path) |fp| {
+        db.save(fp) catch @panic("Unable to save file");
+        log.debug("Saved db to {s}", .{fp});
+    } else {
+        log.debug("Discarding ephemeral db", .{});
+    }
 
-    log.info("AppDeinit()", .{});
     db.deinit();
     curl.deinit();
 }
